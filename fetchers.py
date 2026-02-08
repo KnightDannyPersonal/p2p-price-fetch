@@ -151,9 +151,10 @@ def fetch_mexc(fiat="ETB", pay_filter=None):
         all_ads = {"buy": [], "sell": []}
         pay_method_param = _mexc_pay_filter_ids(pay_filter)
 
-        for trade_type, side_name in [("BUY", "buy"), ("SELL", "sell")]:
+        # MEXC tradeType is from maker perspective: BUY = maker buying = we sell
+        for trade_type, side_name in [("BUY", "sell"), ("SELL", "buy")]:
             params = {
-                "adsType": "1",
+                "adsType": "0",
                 "allowTrade": "true",
                 "amount": "",
                 "blockTrade": "false",
