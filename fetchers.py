@@ -4,7 +4,6 @@ import json
 import time
 from datetime import datetime, timezone, timedelta
 import requests
-from curl_cffi import requests as curl_requests
 from config import ASSET, PAGE_SIZE, MAX_PAGES, PAIRS
 
 TZ_OFFSET = timezone(timedelta(hours=3))
@@ -31,7 +30,6 @@ MEXC_COIN_IDS = {
 
 # MEXC payment method ID -> name mapping (loaded on first fetch)
 MEXC_PAYMENT_METHODS = {}
-_mexc_session = curl_requests.Session(impersonate="chrome120")
 
 # Bybit payment ID -> name mapping
 BYBIT_PAYMENT_NAMES = {
@@ -100,7 +98,7 @@ def _error_result(exchange, error_msg):
 
 
 # ---------------------------------------------------------------------------
-# MEXC — uses curl_cffi for browser-like TLS fingerprint
+# MEXC
 # ---------------------------------------------------------------------------
 def _load_mexc_payment_methods():
     """Load MEXC payment method names once."""
@@ -108,9 +106,9 @@ def _load_mexc_payment_methods():
     if MEXC_PAYMENT_METHODS:
         return
     try:
-        resp = _mexc_session.get(
+        resp = requests.get(
             "https://www.mexc.com/api/platform/p2p/api/payment/method",
-            headers={"Accept": "application/json", "Referer": "https://www.mexc.com/buy-crypto/p2p"},
+            headers={**HEADERS, "Referer": "https://www.mexc.com/buy-crypto/p2p"},
             timeout=10,
         )
         data = resp.json()
@@ -152,6 +150,8 @@ def fetch_mexc(fiat="ETB", pay_filter=None):
         pay_method_param = _mexc_pay_filter_ids(pay_filter)
 
         # MEXC tradeType is from maker perspective: BUY = maker buying = we sell
+        mexc_page_size = 10  # MEXC returns 10 items per page
+        mexc_max_pages = 5   # Cap at 5 pages (50 ads)
         for trade_type, side_name in [("BUY", "sell"), ("SELL", "buy")]:
             params = {
                 "adsType": "0",
@@ -169,40 +169,47 @@ def fetch_mexc(fiat="ETB", pay_filter=None):
                 "tradeType": trade_type,
             }
 
-            resp = _mexc_session.get(base_url, params=params, headers={
-                "Accept": "application/json, text/plain, */*",
-                "Referer": "https://www.mexc.com/buy-crypto/p2p",
-            }, timeout=15)
-            data = resp.json()
-
             ads_list = []
-            raw_items = data.get("data", []) if isinstance(data, dict) else []
-            # Skip ads where merchant trade is disabled (shows "Limited")
-            items = [i for i in raw_items if i.get("merchantTradeEnable", True)]
+            for page_num in range(1, mexc_max_pages + 1):
+                params["page"] = str(page_num)
+                resp = requests.get(base_url, params=params, headers={
+                    **HEADERS,
+                    "Referer": "https://www.mexc.com/buy-crypto/p2p",
+                }, timeout=15)
+                data = resp.json()
 
-            for item in items:
-                price = _safe_float(item.get("price"))
-                amount = _safe_float(item.get("availableQuantity"))
-                min_amount = _safe_float(item.get("minTradeLimit"))
-                max_amount = _safe_float(item.get("maxTradeLimit"))
+                raw_items = data.get("data", []) if isinstance(data, dict) else []
+                if not raw_items:
+                    break
+                # Skip ads where merchant trade is disabled (shows "Limited")
+                items = [i for i in raw_items if i.get("merchantTradeEnable", True)]
 
-                merchant_info = item.get("merchant", {})
-                merchant = merchant_info.get("nickName", "Unknown") if isinstance(merchant_info, dict) else "Unknown"
+                for item in items:
+                    price = _safe_float(item.get("price"))
+                    amount = _safe_float(item.get("availableQuantity"))
+                    min_amount = _safe_float(item.get("minTradeLimit"))
+                    max_amount = _safe_float(item.get("maxTradeLimit"))
 
-                pay_ids = str(item.get("payMethod", "")).split(",")
-                payments = [
-                    MEXC_PAYMENT_METHODS.get(pid.strip(), f"Method {pid.strip()}")
-                    for pid in pay_ids if pid.strip()
-                ]
+                    merchant_info = item.get("merchant", {})
+                    merchant = merchant_info.get("nickName", "Unknown") if isinstance(merchant_info, dict) else "Unknown"
 
-                ads_list.append({
-                    "price": price,
-                    "available_amount": amount,
-                    "min_amount": min_amount,
-                    "max_amount": max_amount,
-                    "merchant": merchant,
-                    "payment_methods": payments,
-                })
+                    pay_ids = str(item.get("payMethod", "")).split(",")
+                    payments = [
+                        MEXC_PAYMENT_METHODS.get(pid.strip(), f"Method {pid.strip()}")
+                        for pid in pay_ids if pid.strip()
+                    ]
+
+                    ads_list.append({
+                        "price": price,
+                        "available_amount": amount,
+                        "min_amount": min_amount,
+                        "max_amount": max_amount,
+                        "merchant": merchant,
+                        "payment_methods": payments,
+                    })
+
+                if len(raw_items) < mexc_page_size:
+                    break
 
             all_ads[side_name] = ads_list
 
