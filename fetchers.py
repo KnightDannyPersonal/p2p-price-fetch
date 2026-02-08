@@ -176,7 +176,9 @@ def fetch_mexc(fiat="ETB", pay_filter=None):
             data = resp.json()
 
             ads_list = []
-            items = data.get("data", []) if isinstance(data, dict) else []
+            raw_items = data.get("data", []) if isinstance(data, dict) else []
+            # Skip ads where merchant trade is disabled (shows "Limited")
+            items = [i for i in raw_items if i.get("merchantTradeEnable", True)]
 
             for item in items[:ADS_PER_PAGE]:
                 price = _safe_float(item.get("price"))
