@@ -16,8 +16,9 @@ PAIRS = [
 # How often to refresh prices (in seconds)
 REFRESH_INTERVAL = 30
 
-# Number of ads to fetch per exchange per side
-ADS_PER_PAGE = 10
+# Pagination for exchange API requests
+PAGE_SIZE = 20       # Ads per API page request
+MAX_PAGES = 10       # Max pages to fetch per side (safety cap)
 
 # Flask server — Render sets PORT via environment variable
 HOST = "0.0.0.0"

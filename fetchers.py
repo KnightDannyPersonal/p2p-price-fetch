@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timezone, timedelta
 import requests
 from curl_cffi import requests as curl_requests
-from config import ASSET, ADS_PER_PAGE, PAIRS
+from config import ASSET, PAGE_SIZE, MAX_PAGES, PAIRS
 
 TZ_OFFSET = timezone(timedelta(hours=3))
 
@@ -180,7 +180,7 @@ def fetch_mexc(fiat="ETB", pay_filter=None):
             # Skip ads where merchant trade is disabled (shows "Limited")
             items = [i for i in raw_items if i.get("merchantTradeEnable", True)]
 
-            for item in items[:ADS_PER_PAGE]:
+            for item in items:
                 price = _safe_float(item.get("price"))
                 amount = _safe_float(item.get("availableQuantity"))
                 min_amount = _safe_float(item.get("minTradeLimit"))
@@ -231,7 +231,7 @@ def fetch_binance(fiat="ETB", pay_filter=None):
             payload = {
                 "fiat": fiat,
                 "page": 1,
-                "rows": ADS_PER_PAGE,
+                "rows": PAGE_SIZE,
                 "tradeType": trade_type,
                 "asset": ASSET,
                 "countries": [],
@@ -242,31 +242,39 @@ def fetch_binance(fiat="ETB", pay_filter=None):
                 "classifies": ["mass", "profession"],
             }
 
-            resp = requests.post(url, json=payload, headers=HEADERS, timeout=15)
-            data = resp.json()
-
             ads_list = []
-            for item in data.get("data", []):
-                adv = item.get("adv", {})
-                advertiser = item.get("advertiser", {})
-                price = _safe_float(adv.get("price"))
-                amount = _safe_float(adv.get("surplusAmount") or adv.get("tradableQuantity"))
-                min_amount = _safe_float(adv.get("minSingleTransAmount"))
-                max_amount = _safe_float(adv.get("maxSingleTransAmount"))
-                merchant = advertiser.get("nickName", "Unknown")
-                payments = [
-                    m.get("tradeMethodName", m.get("identifier", ""))
-                    for m in adv.get("tradeMethods", [])
-                ]
+            for page_num in range(1, MAX_PAGES + 1):
+                payload["page"] = page_num
+                resp = requests.post(url, json=payload, headers=HEADERS, timeout=15)
+                data = resp.json()
+                page_items = data.get("data", [])
+                if not page_items:
+                    break
 
-                ads_list.append({
-                    "price": price,
-                    "available_amount": amount,
-                    "min_amount": min_amount,
-                    "max_amount": max_amount,
-                    "merchant": merchant,
-                    "payment_methods": payments,
-                })
+                for item in page_items:
+                    adv = item.get("adv", {})
+                    advertiser = item.get("advertiser", {})
+                    price = _safe_float(adv.get("price"))
+                    amount = _safe_float(adv.get("surplusAmount") or adv.get("tradableQuantity"))
+                    min_amount = _safe_float(adv.get("minSingleTransAmount"))
+                    max_amount = _safe_float(adv.get("maxSingleTransAmount"))
+                    merchant = advertiser.get("nickName", "Unknown")
+                    payments = [
+                        m.get("tradeMethodName", m.get("identifier", ""))
+                        for m in adv.get("tradeMethods", [])
+                    ]
+
+                    ads_list.append({
+                        "price": price,
+                        "available_amount": amount,
+                        "min_amount": min_amount,
+                        "max_amount": max_amount,
+                        "merchant": merchant,
+                        "payment_methods": payments,
+                    })
+
+                if len(page_items) < PAGE_SIZE:
+                    break
 
             side = "buy" if trade_type == "BUY" else "sell"
             all_ads[side] = ads_list
@@ -296,48 +304,56 @@ def fetch_bybit(fiat="ETB", pay_filter=None):
                 "currencyId": fiat,
                 "payment": pay_filter if pay_filter else [],
                 "side": side_code,
-                "size": str(ADS_PER_PAGE),
+                "size": str(PAGE_SIZE),
                 "page": "1",
                 "amount": "",
                 "authMaker": False,
                 "canTrade": True,
             }
 
-            resp = requests.post(url, json=payload, headers=HEADERS, timeout=15)
-            data = resp.json()
-
             ads_list = []
-            raw_items = (data.get("result") or {}).get("items") or []
-            # Skip ads where merchant requires taker to have posted their own ad
-            # (these show as "ineligible" for most users on Bybit)
-            items = [
-                i for i in raw_items
-                if not (i.get("tradingPreferenceSet") or {}).get("hasUnPostAd")
-            ]
-            for item in items:
-                price = _safe_float(item.get("price"))
-                amount = _safe_float(item.get("lastQuantity") or item.get("quantity"))
-                min_amount = _safe_float(item.get("minAmount"))
-                max_amount = _safe_float(item.get("maxAmount"))
-                merchant = item.get("nickName", "Unknown")
+            for page_num in range(1, MAX_PAGES + 1):
+                payload["page"] = str(page_num)
+                resp = requests.post(url, json=payload, headers=HEADERS, timeout=15)
+                data = resp.json()
 
-                raw_payments = item.get("payments", [])
-                payments = []
-                for p in raw_payments:
-                    if isinstance(p, dict):
-                        payments.append(p.get("paymentName", p.get("paymentType", str(p))))
-                    else:
-                        pid = str(p)
-                        payments.append(BYBIT_PAYMENT_NAMES.get(pid, f"Method {pid}"))
+                raw_items = (data.get("result") or {}).get("items") or []
+                # Skip ads where merchant requires taker to have posted their own ad
+                # (these show as "ineligible" for most users on Bybit)
+                items = [
+                    i for i in raw_items
+                    if not (i.get("tradingPreferenceSet") or {}).get("hasUnPostAd")
+                ]
+                if not raw_items:
+                    break
 
-                ads_list.append({
-                    "price": price,
-                    "available_amount": amount,
-                    "min_amount": min_amount,
-                    "max_amount": max_amount,
-                    "merchant": merchant,
-                    "payment_methods": payments,
-                })
+                for item in items:
+                    price = _safe_float(item.get("price"))
+                    amount = _safe_float(item.get("lastQuantity") or item.get("quantity"))
+                    min_amount = _safe_float(item.get("minAmount"))
+                    max_amount = _safe_float(item.get("maxAmount"))
+                    merchant = item.get("nickName", "Unknown")
+
+                    raw_payments = item.get("payments", [])
+                    payments = []
+                    for p in raw_payments:
+                        if isinstance(p, dict):
+                            payments.append(p.get("paymentName", p.get("paymentType", str(p))))
+                        else:
+                            pid = str(p)
+                            payments.append(BYBIT_PAYMENT_NAMES.get(pid, f"Method {pid}"))
+
+                    ads_list.append({
+                        "price": price,
+                        "available_amount": amount,
+                        "min_amount": min_amount,
+                        "max_amount": max_amount,
+                        "merchant": merchant,
+                        "payment_methods": payments,
+                    })
+
+                if len(raw_items) < PAGE_SIZE:
+                    break
 
             all_ads[side_name] = ads_list
 
@@ -389,7 +405,7 @@ def fetch_okx(fiat="ETB", pay_filter=None):
             ads_list = []
             items = data.get("data", {}).get(side, [])
 
-            for item in items[:ADS_PER_PAGE]:
+            for item in items:
                 price = _safe_float(item.get("price"))
                 amount = _safe_float(item.get("availableAmount"))
                 min_amount = _safe_float(item.get("quoteMinAmountPerOrder"))

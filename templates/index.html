@@ -365,6 +365,37 @@
             font-size: 14px;
         }
 
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            margin-top: 20px;
+            padding: 12px 0;
+        }
+
+        .page-btn {
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #8b8fa3;
+            background: #141929;
+            border: 1px solid #2a2f45;
+            transition: all 0.2s;
+        }
+
+        .page-btn:hover:not(:disabled) { color: #e1e4e8; border-color: #3a3f55; }
+        .page-btn:disabled { opacity: 0.3; cursor: default; }
+        .page-btn.active { background: #2a2f45; color: #fff; }
+
+        .page-info {
+            font-size: 13px;
+            color: #5a5f73;
+            padding: 0 8px;
+        }
+
         .loading-spinner {
             display: inline-block;
             width: 16px;
@@ -486,6 +517,7 @@
             <div class="ads-grid" id="adsGrid">
                 <div class="no-data">Waiting for data...</div>
             </div>
+            <div class="pagination" id="pagination"></div>
         </div>
     </div>
 
@@ -494,6 +526,8 @@
         let currentTab = 'buy';
         let currentFiat = '{{ pairs[0].fiat }}';
         let activeExchanges = new Set(['MEXC', 'Binance', 'Bybit', 'OKX']);
+        let currentPage = 1;
+        const ADS_PER_PAGE = 12;
         const REFRESH_MS = {{ refresh_interval }} * 1000;
 
         const exchangeOrder = ['MEXC', 'Binance', 'Bybit', 'OKX'];
@@ -511,6 +545,7 @@
 
         function switchPair(fiat, btn) {
             currentFiat = fiat;
+            currentPage = 1;
             document.querySelectorAll('.pair-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById('pairLabel').textContent = 'USDT/' + fiat;
@@ -520,6 +555,7 @@
 
         function switchTab(tab) {
             currentTab = tab;
+            currentPage = 1;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             renderAds();
@@ -534,6 +570,7 @@
                 activeExchanges.add(exchange);
                 btn.classList.add('active');
             }
+            currentPage = 1;
             renderAds();
         }
 
@@ -622,6 +659,85 @@
             });
         }
 
+        function goToPage(page) {
+            currentPage = page;
+            renderAds();
+            document.getElementById('adsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderPagination(totalItems) {
+            const container = document.getElementById('pagination');
+            container.innerHTML = '';
+            const totalPages = Math.ceil(totalItems / ADS_PER_PAGE);
+            if (totalPages <= 1) return;
+
+            // Prev button
+            const prev = document.createElement('button');
+            prev.className = 'page-btn';
+            prev.textContent = 'Prev';
+            prev.disabled = currentPage === 1;
+            prev.onclick = () => goToPage(currentPage - 1);
+            container.appendChild(prev);
+
+            // Page number buttons (show max 7 with ellipsis)
+            const maxButtons = 7;
+            let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+            let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+            if (endPage - startPage < maxButtons - 1) {
+                startPage = Math.max(1, endPage - maxButtons + 1);
+            }
+
+            if (startPage > 1) {
+                const btn = document.createElement('button');
+                btn.className = 'page-btn';
+                btn.textContent = '1';
+                btn.onclick = () => goToPage(1);
+                container.appendChild(btn);
+                if (startPage > 2) {
+                    const dots = document.createElement('span');
+                    dots.className = 'page-info';
+                    dots.textContent = '...';
+                    container.appendChild(dots);
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
+                btn.textContent = i;
+                btn.onclick = () => goToPage(i);
+                container.appendChild(btn);
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const dots = document.createElement('span');
+                    dots.className = 'page-info';
+                    dots.textContent = '...';
+                    container.appendChild(dots);
+                }
+                const btn = document.createElement('button');
+                btn.className = 'page-btn';
+                btn.textContent = totalPages;
+                btn.onclick = () => goToPage(totalPages);
+                container.appendChild(btn);
+            }
+
+            // Next button
+            const next = document.createElement('button');
+            next.className = 'page-btn';
+            next.textContent = 'Next';
+            next.disabled = currentPage === totalPages;
+            next.onclick = () => goToPage(currentPage + 1);
+            container.appendChild(next);
+
+            // Total count
+            const info = document.createElement('span');
+            info.className = 'page-info';
+            info.textContent = `${totalItems} ads`;
+            container.appendChild(info);
+        }
+
         function renderAds() {
             if (!currentData) return;
             const grid = document.getElementById('adsGrid');
@@ -648,10 +764,17 @@
 
             if (allAds.length === 0) {
                 grid.innerHTML = '<div class="no-data">No ads available</div>';
+                document.getElementById('pagination').innerHTML = '';
                 return;
             }
 
-            allAds.forEach((ad, i) => {
+            // Paginate
+            const totalPages = Math.ceil(allAds.length / ADS_PER_PAGE);
+            if (currentPage > totalPages) currentPage = totalPages;
+            const start = (currentPage - 1) * ADS_PER_PAGE;
+            const pageAds = allAds.slice(start, start + ADS_PER_PAGE);
+
+            pageAds.forEach((ad, i) => {
                 const cls = exchangeClasses[ad.exchange] || '';
                 const tagCls = `tag-${cls}`;
                 const priceColor = currentTab === 'buy' ? 'color:#00c853' : 'color:#ff5252';
@@ -676,6 +799,8 @@
                 `;
                 grid.appendChild(card);
             });
+
+            renderPagination(allAds.length);
         }
 
         async function fetchPrices() {
