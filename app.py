@@ -56,12 +56,27 @@ def api_price_simple():
     field = request.args.get("field", "best_sell")
     with data_lock:
         data = price_data.get(fiat, {"results": []})
-        for r in data.get("results", []):
-            if r.get("exchange", "").lower() == exchange or not exchange:
-                val = r.get(f"{field}_price", r.get(field))
-                if val is not None:
-                    return str(val), 200, {"Content-Type": "text/plain"}
-        return "N/A", 200, {"Content-Type": "text/plain"}
+        results = data.get("results", [])
+
+        # Specific exchange
+        if exchange:
+            for r in results:
+                if r.get("exchange", "").lower() == exchange:
+                    val = r.get(f"{field}_price", r.get(field))
+                    if val is not None:
+                        return str(val), 200, {"Content-Type": "text/plain"}
+            return "N/A", 200, {"Content-Type": "text/plain"}
+
+        # No exchange: best across all (max for sell, min for buy)
+        values = []
+        for r in results:
+            val = r.get(f"{field}_price", r.get(field))
+            if val is not None:
+                values.append(val)
+        if not values:
+            return "N/A", 200, {"Content-Type": "text/plain"}
+        best = max(values) if "sell" in field else min(values)
+        return str(best), 200, {"Content-Type": "text/plain"}
 
 
 @app.route("/api/prices")
