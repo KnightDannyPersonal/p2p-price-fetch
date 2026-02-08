@@ -361,7 +361,9 @@ def fetch_okx():
                     "payment_methods": payments,
                 })
 
-            all_ads[side] = ads_list
+            # OKX side is from maker's perspective: "buy" = makers buying YOUR usdt
+            mapped_side = "sell" if side == "buy" else "buy"
+            all_ads[mapped_side] = ads_list
 
         return _build_result(exchange, all_ads["buy"], all_ads["sell"])
 
