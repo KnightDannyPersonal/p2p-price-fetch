@@ -267,9 +267,6 @@ def fetch_bybit():
             ads_list = []
             items = data.get("result", {}).get("items", [])
             for item in items:
-                # Skip offline merchants — they are untradeable
-                if not item.get("isOnline", False):
-                    continue
                 price = _safe_float(item.get("price"))
                 amount = _safe_float(item.get("lastQuantity") or item.get("quantity"))
                 min_amount = _safe_float(item.get("minAmount"))
