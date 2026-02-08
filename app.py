@@ -3,30 +3,27 @@
 import threading
 import time
 
-from flask import Flask, jsonify, render_template
-from config import HOST, PORT, REFRESH_INTERVAL
-from fetchers import fetch_all
+from flask import Flask, jsonify, render_template, request
+from config import HOST, PORT, REFRESH_INTERVAL, PAIRS
+from fetchers import fetch_all_pairs
 
 app = Flask(__name__)
 
-# Shared state for latest prices
-price_data = {
-    "results": [],
-    "last_refresh": None,
-}
+# Shared state: keyed by fiat currency code
+price_data = {p["fiat"]: {"results": [], "last_refresh": None} for p in PAIRS}
 data_lock = threading.Lock()
 _fetcher_started = False
 
 
 def background_fetcher():
-    """Continuously fetch P2P prices in the background."""
+    """Continuously fetch P2P prices for all pairs in the background."""
     while True:
         try:
-            results = fetch_all()
+            all_data = fetch_all_pairs()
             with data_lock:
-                price_data["results"] = results
-                price_data["last_refresh"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            print(f"[{time.strftime('%H:%M:%S')}] Prices refreshed successfully")
+                for fiat, data in all_data.items():
+                    price_data[fiat] = data
+            print(f"[{time.strftime('%H:%M:%S')}] All pairs refreshed successfully")
         except Exception as e:
             print(f"[{time.strftime('%H:%M:%S')}] Error refreshing prices: {e}")
 
@@ -45,13 +42,19 @@ def start_fetcher():
 
 @app.route("/")
 def index():
-    return render_template("index.html", refresh_interval=REFRESH_INTERVAL)
+    return render_template(
+        "index.html",
+        refresh_interval=REFRESH_INTERVAL,
+        pairs=PAIRS,
+    )
 
 
 @app.route("/api/prices")
 def api_prices():
+    fiat = request.args.get("fiat", PAIRS[0]["fiat"]).upper()
     with data_lock:
-        return jsonify(price_data)
+        data = price_data.get(fiat, {"results": [], "last_refresh": None})
+        return jsonify(data)
 
 
 # Start fetcher when module loads (works with both gunicorn and python app.py)

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P Price Tracker — USDT/ETB</title>
+    <title>P2P Price Tracker</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -23,6 +23,12 @@
             align-items: center;
         }
 
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
         .header h1 {
             font-size: 22px;
             font-weight: 600;
@@ -33,6 +39,30 @@
             color: #f0b90b;
             font-weight: 700;
         }
+
+        .pair-selector {
+            display: flex;
+            gap: 4px;
+            background: #141929;
+            border-radius: 8px;
+            padding: 4px;
+            border: 1px solid #2a2f45;
+        }
+
+        .pair-btn {
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #8b8fa3;
+            transition: all 0.2s;
+            border: none;
+            background: none;
+        }
+
+        .pair-btn:hover { color: #e1e4e8; }
+        .pair-btn.active { background: #f0b90b; color: #0a0e17; }
 
         .status-bar {
             display: flex;
@@ -390,7 +420,15 @@
 </head>
 <body>
     <div class="header">
-        <h1>P2P Price Tracker — <span>USDT/ETB</span></h1>
+        <div class="header-left">
+            <h1>P2P Price Tracker — <span id="pairLabel">USDT/ETB</span></h1>
+            <div class="pair-selector" id="pairSelector">
+                {% for p in pairs %}
+                <button class="pair-btn{% if loop.first %} active{% endif %}"
+                        onclick="switchPair('{{ p.fiat }}', this)">{{ p.fiat }}</button>
+                {% endfor %}
+            </div>
+        </div>
         <div class="status-bar">
             <span class="status-dot" id="statusDot"></span>
             <span id="statusText">Connecting...</span>
@@ -454,6 +492,7 @@
     <script>
         let currentData = null;
         let currentTab = 'buy';
+        let currentFiat = '{{ pairs[0].fiat }}';
         let activeExchanges = new Set(['MEXC', 'Binance', 'Bybit', 'OKX']);
         const REFRESH_MS = {{ refresh_interval }} * 1000;
 
@@ -470,6 +509,15 @@
             });
         }
 
+        function switchPair(fiat, btn) {
+            currentFiat = fiat;
+            document.querySelectorAll('.pair-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('pairLabel').textContent = 'USDT/' + fiat;
+            document.title = 'P2P Price Tracker — USDT/' + fiat;
+            fetchPrices();
+        }
+
         function switchTab(tab) {
             currentTab = tab;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -479,7 +527,7 @@
 
         function toggleExchange(exchange, btn) {
             if (activeExchanges.has(exchange)) {
-                if (activeExchanges.size === 1) return; // keep at least one
+                if (activeExchanges.size === 1) return;
                 activeExchanges.delete(exchange);
                 btn.classList.remove('active');
             } else {
@@ -518,16 +566,16 @@
                     <div class="price-row">
                         <div>
                             <div class="price-label">Best Buy Price</div>
-                            <div class="price-value buy">${formatPrice(ex.best_buy_price)} ETB</div>
+                            <div class="price-value buy">${formatPrice(ex.best_buy_price)} ${currentFiat}</div>
                         </div>
                         <div style="text-align:right">
                             <div class="price-label">Best Sell Price</div>
-                            <div class="price-value sell">${formatPrice(ex.best_sell_price)} ETB</div>
+                            <div class="price-value sell">${formatPrice(ex.best_sell_price)} ${currentFiat}</div>
                         </div>
                     </div>
                     <div class="spread-bar">
                         <span class="label">Spread</span>
-                        <span class="value">${spread} ETB (${spreadPct})</span>
+                        <span class="value">${spread} ${currentFiat} (${spreadPct})</span>
                     </div>
                     <div class="ad-count" style="margin-top:6px">
                         ${ex.buy_count} buy ads &middot; ${ex.sell_count} sell ads
@@ -545,7 +593,6 @@
                 exchangeOrder.indexOf(a.exchange) - exchangeOrder.indexOf(b.exchange)
             );
 
-            // Find best prices across all exchanges
             const allBuys = sorted.filter(e => e.best_buy_price).map(e => e.best_buy_price);
             const allSells = sorted.filter(e => e.best_sell_price).map(e => e.best_sell_price);
             const bestBuy = allBuys.length ? Math.min(...allBuys) : null;
@@ -593,7 +640,6 @@
                 });
             });
 
-            // Sort: buy = lowest first, sell = highest first
             if (currentTab === 'buy') {
                 allAds.sort((a, b) => a.price - b.price);
             } else {
@@ -617,7 +663,7 @@
                         <span class="ad-merchant">${ad.merchant}</span>
                         <span class="ad-exchange-tag ${tagCls}">${ad.exchange}</span>
                     </div>
-                    <div class="ad-price" style="${priceColor}">${formatPrice(ad.price)} ETB</div>
+                    <div class="ad-price" style="${priceColor}">${formatPrice(ad.price)} ${currentFiat}</div>
                     <div class="ad-details">
                         <span>Available: <span class="val">${formatPrice(ad.available_amount)} USDT</span></span>
                         <span>Limit: <span class="val">${formatPrice(ad.min_amount)} - ${formatPrice(ad.max_amount)}</span></span>
@@ -634,7 +680,7 @@
 
         async function fetchPrices() {
             try {
-                const resp = await fetch('/api/prices');
+                const resp = await fetch('/api/prices?fiat=' + currentFiat);
                 const data = await resp.json();
 
                 if (data.results && data.results.length > 0) {

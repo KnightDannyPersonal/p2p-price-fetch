@@ -4,7 +4,7 @@ import json
 import time
 import requests
 from curl_cffi import requests as curl_requests
-from config import ASSET, FIAT, ADS_PER_PAGE
+from config import ASSET, ADS_PER_PAGE, PAIRS
 
 
 HEADERS = {
@@ -25,6 +25,28 @@ MEXC_COIN_IDS = {
 # MEXC payment method ID -> name mapping (loaded on first fetch)
 MEXC_PAYMENT_METHODS = {}
 _mexc_session = curl_requests.Session(impersonate="chrome120")
+
+# Bybit payment ID -> name mapping
+BYBIT_PAYMENT_NAMES = {
+    "629": "CBE", "630": "Tele Birr", "631": "Awash Bank",
+    "632": "Bank of Abyssinia", "633": "Dashen Bank", "634": "Wegagen Bank",
+    "635": "Hibret Bank", "636": "Nib Bank", "637": "Oromia Bank",
+    "638": "Ebirr", "639": "Amole", "6": "Bank Transfer",
+    "14": "Bank Transfer", "40": "Mobile Money", "41": "Mobile Money",
+    "97": "Mobile Money", "178": "Bank Transfer",
+    "582": "Payoneer", "62": "Payoneer",
+}
+
+# Payment method name mappings per exchange (generic name -> exchange-specific identifier)
+BINANCE_PAY_METHODS = {
+    "Dukascopy": "DukascopyBank",
+    "Payoneer": "Payoneer",
+}
+
+OKX_PAY_METHODS = {
+    "Dukascopy": "Dukascopy",
+    "Payoneer": "Payoneer",
+}
 
 
 def _safe_float(value, default=0.0):
@@ -71,7 +93,7 @@ def _error_result(exchange, error_msg):
 
 
 # ---------------------------------------------------------------------------
-# MEXC (Most Important) — uses curl_cffi for browser-like TLS fingerprint
+# MEXC — uses curl_cffi for browser-like TLS fingerprint
 # ---------------------------------------------------------------------------
 def _load_mexc_payment_methods():
     """Load MEXC payment method names once."""
@@ -96,9 +118,23 @@ def _load_mexc_payment_methods():
         print(f"[MEXC] Payment method load error: {e}")
 
 
-def fetch_mexc():
+def _mexc_pay_filter_ids(pay_filter):
+    """Find MEXC payment method IDs matching filter names."""
+    if not pay_filter or not MEXC_PAYMENT_METHODS:
+        return ""
+    matching_ids = []
+    for pm_id, pm_name in MEXC_PAYMENT_METHODS.items():
+        for f in pay_filter:
+            if f.lower() in pm_name.lower():
+                matching_ids.append(pm_id)
+                break
+    return ",".join(matching_ids)
+
+
+def fetch_mexc(fiat="ETB", pay_filter=None):
     """Fetch P2P ads from MEXC."""
     exchange = "MEXC"
+    pay_filter = pay_filter or []
 
     try:
         _load_mexc_payment_methods()
@@ -106,6 +142,7 @@ def fetch_mexc():
         coin_id = MEXC_COIN_IDS.get(ASSET, MEXC_COIN_IDS["USDT"])
         base_url = "https://www.mexc.com/api/platform/p2p/api/market"
         all_ads = {"buy": [], "sell": []}
+        pay_method_param = _mexc_pay_filter_ids(pay_filter)
 
         for trade_type, side_name in [("BUY", "buy"), ("SELL", "sell")]:
             params = {
@@ -116,11 +153,11 @@ def fetch_mexc():
                 "certifiedMerchant": "false",
                 "coinId": coin_id,
                 "countryCode": "",
-                "currency": FIAT,
+                "currency": fiat,
                 "follow": "false",
                 "haveTrade": "false",
                 "page": "1",
-                "payMethod": "",
+                "payMethod": pay_method_param,
                 "tradeType": trade_type,
             }
 
@@ -168,17 +205,21 @@ def fetch_mexc():
 # ---------------------------------------------------------------------------
 # Binance
 # ---------------------------------------------------------------------------
-def fetch_binance():
+def fetch_binance(fiat="ETB", pay_filter=None):
     """Fetch P2P ads from Binance."""
     url = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
     exchange = "Binance"
+    pay_filter = pay_filter or []
+
+    # Map generic names to Binance-specific identifiers
+    pay_types = [BINANCE_PAY_METHODS.get(p, p) for p in pay_filter] if pay_filter else []
 
     try:
         all_ads = {"buy": [], "sell": []}
 
         for trade_type in ["BUY", "SELL"]:
             payload = {
-                "fiat": FIAT,
+                "fiat": fiat,
                 "page": 1,
                 "rows": ADS_PER_PAGE,
                 "tradeType": trade_type,
@@ -187,7 +228,7 @@ def fetch_binance():
                 "proMerchantAds": False,
                 "shieldMerchantAds": False,
                 "publisherType": None,
-                "payTypes": [],
+                "payTypes": pay_types,
                 "classifies": ["mass", "profession"],
             }
 
@@ -227,22 +268,13 @@ def fetch_binance():
 
 
 # ---------------------------------------------------------------------------
-# Bybit — payment ID to name mapping for Ethiopian methods
+# Bybit
 # ---------------------------------------------------------------------------
-BYBIT_PAYMENT_NAMES = {
-    "629": "CBE", "630": "Tele Birr", "631": "Awash Bank",
-    "632": "Bank of Abyssinia", "633": "Dashen Bank", "634": "Wegagen Bank",
-    "635": "Hibret Bank", "636": "Nib Bank", "637": "Oromia Bank",
-    "638": "Ebirr", "639": "Amole", "6": "Bank Transfer",
-    "14": "Bank Transfer", "40": "Mobile Money", "41": "Mobile Money",
-    "97": "Mobile Money", "178": "Bank Transfer",
-}
-
-
-def fetch_bybit():
+def fetch_bybit(fiat="ETB", pay_filter=None):
     """Fetch P2P ads from Bybit."""
     url = "https://api2.bybit.com/fiat/otc/item/online"
     exchange = "Bybit"
+    pay_filter = pay_filter or []
 
     try:
         all_ads = {"buy": [], "sell": []}
@@ -251,8 +283,8 @@ def fetch_bybit():
             payload = {
                 "userId": "",
                 "tokenId": ASSET,
-                "currencyId": FIAT,
-                "payment": [],
+                "currencyId": fiat,
+                "payment": pay_filter if pay_filter else [],
                 "side": side_code,
                 "size": str(ADS_PER_PAGE),
                 "page": "1",
@@ -273,7 +305,6 @@ def fetch_bybit():
                 max_amount = _safe_float(item.get("maxAmount"))
                 merchant = item.get("nickName", "Unknown")
 
-                # Bybit payments are string IDs, not dicts
                 raw_payments = item.get("payments", [])
                 payments = []
                 for p in raw_payments:
@@ -303,20 +334,26 @@ def fetch_bybit():
 # ---------------------------------------------------------------------------
 # OKX
 # ---------------------------------------------------------------------------
-def fetch_okx():
+def fetch_okx(fiat="ETB", pay_filter=None):
     """Fetch P2P ads from OKX."""
     base_url = "https://www.okx.com/v3/c2c/tradingOrders/books"
     exchange = "OKX"
+    pay_filter = pay_filter or []
+
+    # OKX paymentMethod param: comma-separated or "all"
+    pay_method_param = ",".join(
+        OKX_PAY_METHODS.get(p, p) for p in pay_filter
+    ) if pay_filter else "all"
 
     try:
         all_ads = {"buy": [], "sell": []}
 
         for side in ["buy", "sell"]:
             params = {
-                "quoteCurrency": FIAT.lower(),
+                "quoteCurrency": fiat.lower(),
                 "baseCurrency": ASSET.lower(),
                 "side": side,
-                "paymentMethod": "all",
+                "paymentMethod": pay_method_param,
                 "userType": "all",
                 "showTrade": "false",
                 "showFollow": "false",
@@ -334,7 +371,6 @@ def fetch_okx():
             data = resp.json()
 
             ads_list = []
-            # OKX returns data.buy[] for buy requests, data.sell[] for sell
             items = data.get("data", {}).get(side, [])
 
             for item in items[:ADS_PER_PAGE]:
@@ -344,7 +380,6 @@ def fetch_okx():
                 max_amount = _safe_float(item.get("quoteMaxAmountPerOrder"))
                 merchant = item.get("nickName", "Unknown")
 
-                # OKX paymentMethods is a list of strings
                 payments = []
                 for p in item.get("paymentMethods", []):
                     if isinstance(p, str):
@@ -372,7 +407,7 @@ def fetch_okx():
 
 
 # ---------------------------------------------------------------------------
-# Fetch all exchanges
+# Fetch all exchanges for a single pair
 # ---------------------------------------------------------------------------
 ALL_FETCHERS = [
     ("MEXC", fetch_mexc),
@@ -382,10 +417,25 @@ ALL_FETCHERS = [
 ]
 
 
-def fetch_all():
-    """Fetch P2P data from all exchanges. Returns list of result dicts."""
+def fetch_all(fiat="ETB", pay_filter=None):
+    """Fetch P2P data from all exchanges for a given fiat. Returns list of result dicts."""
+    pay_filter = pay_filter or []
     results = []
     for name, fetcher in ALL_FETCHERS:
-        print(f"  Fetching {name}...")
-        results.append(fetcher())
+        print(f"  Fetching {name} ({fiat})...")
+        results.append(fetcher(fiat=fiat, pay_filter=pay_filter))
     return results
+
+
+def fetch_all_pairs():
+    """Fetch P2P data for all configured currency pairs. Returns dict keyed by fiat."""
+    all_data = {}
+    for pair in PAIRS:
+        fiat = pair["fiat"]
+        pay_filter = pair.get("pay_filter", [])
+        print(f"[{fiat}] Fetching all exchanges...")
+        all_data[fiat] = {
+            "results": fetch_all(fiat=fiat, pay_filter=pay_filter),
+            "last_refresh": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+    return all_data
