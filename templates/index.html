@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Price Tracker — USDT/ETB</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0e17;
+            color: #e1e4e8;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0d1321 0%, #1a1f36 100%);
+            border-bottom: 1px solid #2a2f45;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .header h1 span {
+            color: #f0b90b;
+            font-weight: 700;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 13px;
+            color: #8b8fa3;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00c853;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.error { background: #ff5252; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 25px;
+        }
+
+        /* Summary Cards Row */
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+            margin-bottom: 25px;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #141929 0%, #1a1f36 100%);
+            border: 1px solid #2a2f45;
+            border-radius: 12px;
+            padding: 20px 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .summary-card.mexc {
+            border-color: #1ce0c8;
+            box-shadow: 0 0 20px rgba(28, 224, 200, 0.08);
+        }
+
+        .summary-card.binance { border-color: #f0b90b33; }
+        .summary-card.bybit { border-color: #f7a60033; }
+        .summary-card.okx { border-color: #ffffff22; }
+
+        .summary-card .badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: #1ce0c8;
+            color: #0a0e17;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            display: none;
+        }
+
+        .summary-card.mexc .badge { display: inline-block; }
+
+        .exchange-name {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .exchange-name .logo {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 11px;
+        }
+
+        .mexc .logo { background: #1ce0c8; color: #0a0e17; }
+        .binance .logo { background: #f0b90b; color: #0a0e17; }
+        .bybit .logo { background: #f7a600; color: #0a0e17; }
+        .okx .logo { background: #fff; color: #0a0e17; }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .price-label {
+            font-size: 12px;
+            color: #8b8fa3;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .price-value {
+            font-size: 22px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .price-value.buy { color: #00c853; }
+        .price-value.sell { color: #ff5252; }
+
+        .spread-bar {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #2a2f45;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .spread-bar .label { color: #8b8fa3; }
+        .spread-bar .value { color: #f0b90b; font-weight: 600; }
+
+        .ad-count {
+            font-size: 11px;
+            color: #5a5f73;
+        }
+
+        .error-msg {
+            color: #ff5252;
+            font-size: 12px;
+            margin-top: 8px;
+            padding: 8px;
+            background: #ff525210;
+            border-radius: 6px;
+        }
+
+        /* Ads Detail Table */
+        .detail-section {
+            margin-top: 30px;
+        }
+
+        .detail-section h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #8b8fa3;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 15px;
+            background: #141929;
+            border-radius: 8px;
+            padding: 4px;
+            border: 1px solid #2a2f45;
+            width: fit-content;
+        }
+
+        .tab {
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: #8b8fa3;
+            transition: all 0.2s;
+            border: none;
+            background: none;
+        }
+
+        .tab:hover { color: #e1e4e8; }
+        .tab.active { background: #2a2f45; color: #fff; }
+
+        .ads-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 12px;
+        }
+
+        .ad-card {
+            background: #141929;
+            border: 1px solid #2a2f45;
+            border-radius: 10px;
+            padding: 16px;
+            transition: border-color 0.2s;
+        }
+
+        .ad-card:hover { border-color: #3a3f55; }
+
+        .ad-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .ad-merchant {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .ad-exchange-tag {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tag-mexc { background: #1ce0c820; color: #1ce0c8; }
+        .tag-binance { background: #f0b90b20; color: #f0b90b; }
+        .tag-bybit { background: #f7a60020; color: #f7a600; }
+        .tag-okx { background: #ffffff20; color: #fff; }
+
+        .ad-price {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ad-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            font-size: 12px;
+            color: #8b8fa3;
+        }
+
+        .ad-details span { display: block; }
+        .ad-details .val { color: #c9ccd5; font-weight: 500; }
+
+        .payment-tags {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .payment-tag {
+            background: #2a2f45;
+            color: #8b8fa3;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #5a5f73;
+            font-size: 14px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #2a2f45;
+            border-top-color: #1ce0c8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+
+        .comparison-table th {
+            background: #141929;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #8b8fa3;
+            border-bottom: 1px solid #2a2f45;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .comparison-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #1a1f36;
+        }
+
+        .comparison-table tr:hover td {
+            background: #141929;
+        }
+
+        .best-price { color: #1ce0c8; font-weight: 700; }
+
+        @media (max-width: 768px) {
+            .container { padding: 15px; }
+            .summary-row { grid-template-columns: 1fr; }
+            .ads-grid { grid-template-columns: 1fr; }
+            .header { flex-direction: column; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>P2P Price Tracker — <span>USDT/ETB</span></h1>
+        <div class="status-bar">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Connecting...</span>
+            <span>|</span>
+            <span id="lastUpdated">—</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Summary Cards -->
+        <div class="summary-row" id="summaryCards">
+            <div class="no-data">
+                <div class="loading-spinner"></div>
+                <p style="margin-top: 12px;">Fetching prices from exchanges...</p>
+            </div>
+        </div>
+
+        <!-- Comparison Table -->
+        <div class="detail-section">
+            <h2>Exchange Comparison</h2>
+            <table class="comparison-table" id="comparisonTable">
+                <thead>
+                    <tr>
+                        <th>Exchange</th>
+                        <th>Best Buy</th>
+                        <th>Best Sell</th>
+                        <th>Avg Buy</th>
+                        <th>Avg Sell</th>
+                        <th>Spread</th>
+                        <th>Ads</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="comparisonBody">
+                    <tr><td colspan="8" class="no-data">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Detailed Ads -->
+        <div class="detail-section">
+            <h2>Individual Ads</h2>
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('buy')">Buy Ads</button>
+                <button class="tab" onclick="switchTab('sell')">Sell Ads</button>
+            </div>
+            <div class="ads-grid" id="adsGrid">
+                <div class="no-data">Waiting for data...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = null;
+        let currentTab = 'buy';
+        const REFRESH_MS = {{ refresh_interval }} * 1000;
+
+        const exchangeOrder = ['MEXC', 'Binance', 'Bybit', 'OKX'];
+        const exchangeClasses = {
+            'MEXC': 'mexc', 'Binance': 'binance',
+            'Bybit': 'bybit', 'OKX': 'okx'
+        };
+
+        function formatPrice(price) {
+            if (price === null || price === undefined) return '—';
+            return Number(price).toLocaleString('en-US', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2
+            });
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            renderAds();
+        }
+
+        function renderSummary(results) {
+            const container = document.getElementById('summaryCards');
+            container.innerHTML = '';
+
+            const sorted = [...results].sort((a, b) =>
+                exchangeOrder.indexOf(a.exchange) - exchangeOrder.indexOf(b.exchange)
+            );
+
+            sorted.forEach(ex => {
+                const cls = exchangeClasses[ex.exchange] || '';
+                const spread = (ex.best_sell_price && ex.best_buy_price)
+                    ? (ex.best_sell_price - ex.best_buy_price).toFixed(2)
+                    : '—';
+                const spreadPct = (ex.best_sell_price && ex.best_buy_price)
+                    ? ((ex.best_sell_price - ex.best_buy_price) / ex.best_buy_price * 100).toFixed(2) + '%'
+                    : '—';
+
+                const card = document.createElement('div');
+                card.className = `summary-card ${cls}`;
+                card.innerHTML = `
+                    <span class="badge">Priority</span>
+                    <div class="exchange-name">
+                        <span class="logo">${ex.exchange.charAt(0)}</span>
+                        ${ex.exchange}
+                    </div>
+                    ${ex.error ? `<div class="error-msg">${ex.error}</div>` : `
+                    <div class="price-row">
+                        <div>
+                            <div class="price-label">Best Buy Price</div>
+                            <div class="price-value buy">${formatPrice(ex.best_buy_price)} ETB</div>
+                        </div>
+                        <div style="text-align:right">
+                            <div class="price-label">Best Sell Price</div>
+                            <div class="price-value sell">${formatPrice(ex.best_sell_price)} ETB</div>
+                        </div>
+                    </div>
+                    <div class="spread-bar">
+                        <span class="label">Spread</span>
+                        <span class="value">${spread} ETB (${spreadPct})</span>
+                    </div>
+                    <div class="ad-count" style="margin-top:6px">
+                        ${ex.buy_count} buy ads &middot; ${ex.sell_count} sell ads
+                    </div>`}
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderComparison(results) {
+            const tbody = document.getElementById('comparisonBody');
+            tbody.innerHTML = '';
+
+            const sorted = [...results].sort((a, b) =>
+                exchangeOrder.indexOf(a.exchange) - exchangeOrder.indexOf(b.exchange)
+            );
+
+            // Find best prices across all exchanges
+            const allBuys = sorted.filter(e => e.best_buy_price).map(e => e.best_buy_price);
+            const allSells = sorted.filter(e => e.best_sell_price).map(e => e.best_sell_price);
+            const bestBuy = allBuys.length ? Math.min(...allBuys) : null;
+            const bestSell = allSells.length ? Math.max(...allSells) : null;
+
+            sorted.forEach(ex => {
+                const spread = (ex.best_sell_price && ex.best_buy_price)
+                    ? (ex.best_sell_price - ex.best_buy_price).toFixed(2)
+                    : '—';
+                const isBestBuy = ex.best_buy_price === bestBuy;
+                const isBestSell = ex.best_sell_price === bestSell;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${ex.exchange}</strong></td>
+                    <td class="${isBestBuy ? 'best-price' : ''}">${formatPrice(ex.best_buy_price)}</td>
+                    <td class="${isBestSell ? 'best-price' : ''}">${formatPrice(ex.best_sell_price)}</td>
+                    <td>${formatPrice(ex.avg_buy_price)}</td>
+                    <td>${formatPrice(ex.avg_sell_price)}</td>
+                    <td>${spread}</td>
+                    <td>${ex.buy_count + ex.sell_count}</td>
+                    <td>${ex.error
+                        ? '<span style="color:#ff5252">Error</span>'
+                        : '<span style="color:#00c853">OK</span>'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderAds() {
+            if (!currentData) return;
+            const grid = document.getElementById('adsGrid');
+            grid.innerHTML = '';
+
+            const allAds = [];
+            const sorted = [...currentData.results].sort((a, b) =>
+                exchangeOrder.indexOf(a.exchange) - exchangeOrder.indexOf(b.exchange)
+            );
+
+            sorted.forEach(ex => {
+                const ads = currentTab === 'buy' ? ex.buy_ads : ex.sell_ads;
+                ads.forEach(ad => {
+                    allAds.push({ ...ad, exchange: ex.exchange });
+                });
+            });
+
+            // Sort: buy = lowest first, sell = highest first
+            if (currentTab === 'buy') {
+                allAds.sort((a, b) => a.price - b.price);
+            } else {
+                allAds.sort((a, b) => b.price - a.price);
+            }
+
+            if (allAds.length === 0) {
+                grid.innerHTML = '<div class="no-data">No ads available</div>';
+                return;
+            }
+
+            allAds.forEach((ad, i) => {
+                const cls = exchangeClasses[ad.exchange] || '';
+                const tagCls = `tag-${cls}`;
+                const priceColor = currentTab === 'buy' ? 'color:#00c853' : 'color:#ff5252';
+
+                const card = document.createElement('div');
+                card.className = 'ad-card';
+                card.innerHTML = `
+                    <div class="ad-header">
+                        <span class="ad-merchant">${ad.merchant}</span>
+                        <span class="ad-exchange-tag ${tagCls}">${ad.exchange}</span>
+                    </div>
+                    <div class="ad-price" style="${priceColor}">${formatPrice(ad.price)} ETB</div>
+                    <div class="ad-details">
+                        <span>Available: <span class="val">${formatPrice(ad.available_amount)} USDT</span></span>
+                        <span>Limit: <span class="val">${formatPrice(ad.min_amount)} - ${formatPrice(ad.max_amount)}</span></span>
+                    </div>
+                    <div class="payment-tags">
+                        ${(ad.payment_methods || []).map(p =>
+                            `<span class="payment-tag">${p || 'Unknown'}</span>`
+                        ).join('')}
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        async function fetchPrices() {
+            try {
+                const resp = await fetch('/api/prices');
+                const data = await resp.json();
+
+                if (data.results && data.results.length > 0) {
+                    currentData = data;
+                    renderSummary(data.results);
+                    renderComparison(data.results);
+                    renderAds();
+
+                    document.getElementById('statusDot').className = 'status-dot';
+                    document.getElementById('statusText').textContent = 'Live';
+                    document.getElementById('lastUpdated').textContent =
+                        'Updated: ' + (data.last_refresh || '—');
+                }
+            } catch (err) {
+                document.getElementById('statusDot').className = 'status-dot error';
+                document.getElementById('statusText').textContent = 'Connection error';
+                console.error('Fetch error:', err);
+            }
+        }
+
+        // Initial fetch + interval
+        fetchPrices();
+        setInterval(fetchPrices, REFRESH_MS);
+    </script>
+</body>
+</html>
