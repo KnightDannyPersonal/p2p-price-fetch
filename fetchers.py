@@ -321,7 +321,7 @@ def fetch_okx():
                 "showTrade": "false",
                 "showFollow": "false",
                 "showAlreadyTraded": "false",
-                "isAbleFilter": "false",
+                "isAbleFilter": "true",
                 "receivingAds": "false",
             }
 
