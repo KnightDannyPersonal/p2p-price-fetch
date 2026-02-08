@@ -454,6 +454,35 @@
             margin: 4px 0;
         }
 
+        .amount-filter {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .amount-filter input {
+            width: 120px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #2a2f45;
+            background: #141929;
+            color: #e1e4e8;
+            font-size: 12px;
+            font-weight: 600;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .amount-filter input::placeholder { color: #5a5f73; }
+        .amount-filter input:focus { border-color: #3a3f55; }
+        .amount-filter input.active { border-color: #1ce0c850; color: #1ce0c8; }
+
+        .amount-filter label {
+            font-size: 12px;
+            color: #5a5f73;
+            white-space: nowrap;
+        }
+
         .no-data {
             text-align: center;
             padding: 40px;
@@ -619,6 +648,11 @@
                         <div id="payOptionsList"></div>
                     </div>
                 </div>
+                <div class="amount-filter">
+                    <label>Amount:</label>
+                    <input type="number" id="amountFilter" placeholder="e.g. 500"
+                           oninput="onAmountChange()" min="0" step="any">
+                </div>
             </div>
             <div class="ads-grid" id="adsGrid">
                 <div class="no-data">Waiting for data...</div>
@@ -662,6 +696,9 @@
             currentPage = 1;
             selectedPayments.clear();
             updatePayBtnLabel();
+            const amountInput = document.getElementById('amountFilter');
+            amountInput.value = '';
+            amountInput.classList.remove('active');
             document.querySelectorAll('.pair-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById('pairLabel').textContent = 'USDT/' + fiat;
@@ -755,6 +792,14 @@
             selectedPayments.clear();
             currentPage = 1;
             updatePaymentOptions();
+            renderAds();
+        }
+
+        function onAmountChange() {
+            const input = document.getElementById('amountFilter');
+            const val = parseFloat(input.value);
+            input.classList.toggle('active', !isNaN(val) && val > 0);
+            currentPage = 1;
             renderAds();
         }
 
@@ -938,6 +983,8 @@
             const grid = document.getElementById('adsGrid');
             grid.innerHTML = '';
 
+            const filterAmount = parseFloat(document.getElementById('amountFilter').value) || 0;
+
             const allAds = [];
             const sorted = [...currentData.results].sort((a, b) =>
                 exchangeOrder.indexOf(a.exchange) - exchangeOrder.indexOf(b.exchange)
@@ -955,6 +1002,10 @@
                             return sels.some(s => pl.startsWith(s));
                         });
                         if (!hasMatch) return;
+                    }
+                    // Amount filter: only show ads where amount is within min-max limit
+                    if (filterAmount > 0) {
+                        if (filterAmount < ad.min_amount || filterAmount > ad.max_amount) return;
                     }
                     allAds.push({ ...ad, exchange: ex.exchange });
                 });

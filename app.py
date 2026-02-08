@@ -8,6 +8,7 @@ from config import HOST, PORT, REFRESH_INTERVAL, PAIRS
 from fetchers import fetch_all_pairs, _now
 
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 # Shared state: keyed by fiat currency code
 price_data = {p["fiat"]: {"results": [], "last_refresh": None} for p in PAIRS}
