@@ -3,6 +3,7 @@
 import json
 import time
 import requests
+from curl_cffi import requests as curl_requests
 from config import ASSET, FIAT, ADS_PER_PAGE
 
 
@@ -13,7 +14,7 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
-# MEXC coin IDs (fetched at startup, cached)
+# MEXC coin IDs
 MEXC_COIN_IDS = {
     "USDT": "128f589271cb4951b03e71e6323eb7be",
     "BTC": "febc9973be4d4d53bb374476239eb219",
@@ -21,8 +22,9 @@ MEXC_COIN_IDS = {
     "USDC": "34309140878b4ae99f195ac091d49bab",
 }
 
-# MEXC payment method ID -> name mapping (populated at startup)
+# MEXC payment method ID -> name mapping (loaded on first fetch)
 MEXC_PAYMENT_METHODS = {}
+_mexc_session = curl_requests.Session(impersonate="chrome120")
 
 
 def _safe_float(value, default=0.0):
@@ -69,179 +71,98 @@ def _error_result(exchange, error_msg):
 
 
 # ---------------------------------------------------------------------------
-# MEXC (Most Important) — requires Playwright browser session
+# MEXC (Most Important) — uses curl_cffi for browser-like TLS fingerprint
 # ---------------------------------------------------------------------------
-class MexcFetcher:
-    """Manages a Playwright browser session for MEXC P2P fetching."""
-
-    def __init__(self):
-        self._playwright = None
-        self._browser = None
-        self._page = None
-        self._initialized = False
-
-    def _ensure_browser(self):
-        """Start browser if not running."""
-        if self._initialized and self._page:
-            return True
-
-        try:
-            from playwright.sync_api import sync_playwright
-            if not self._playwright:
-                self._playwright = sync_playwright().start()
-            if not self._browser:
-                self._browser = self._playwright.chromium.launch(headless=True)
-            if not self._page:
-                context = self._browser.new_context()
-                self._page = context.new_page()
-                print("[MEXC] Loading browser session...")
-                self._page.goto(
-                    "https://www.mexc.com/buy-crypto/p2p",
-                    wait_until="networkidle",
-                    timeout=60000,
-                )
-                self._page.wait_for_timeout(2000)
-                self._load_payment_methods()
-                self._initialized = True
-                print("[MEXC] Browser session ready")
-            return True
-        except Exception as e:
-            print(f"[MEXC] Browser init error: {e}")
-            self._initialized = False
-            return False
-
-    def _load_payment_methods(self):
-        """Load payment method names from MEXC API."""
-        global MEXC_PAYMENT_METHODS
-        try:
-            resp = self._page.evaluate("""
-                fetch('/api/platform/p2p/api/payment/method')
-                    .then(r => r.json())
-                    .catch(e => ({error: e.message}))
-            """)
-            if isinstance(resp, dict) and "data" in resp:
-                for pm in resp["data"]:
-                    if isinstance(pm, dict):
-                        pm_id = str(pm.get("id", ""))
-                        pm_name = pm.get("nameEn") or pm.get("name") or pm.get("nameCn") or pm_id
-                        MEXC_PAYMENT_METHODS[pm_id] = pm_name
-                print(f"[MEXC] Loaded {len(MEXC_PAYMENT_METHODS)} payment methods")
-        except Exception as e:
-            print(f"[MEXC] Payment method load error: {e}")
-
-    def _restart_session(self):
-        """Restart the browser session if it becomes stale."""
-        try:
-            if self._page:
-                self._page.close()
-        except:
-            pass
-        try:
-            if self._browser:
-                self._browser.close()
-        except:
-            pass
-        self._page = None
-        self._browser = None
-        self._initialized = False
-
-    def fetch(self):
-        """Fetch P2P ads from MEXC using browser session."""
-        exchange = "MEXC"
-
-        if not self._ensure_browser():
-            return _error_result(exchange, "Could not start browser session")
-
-        try:
-            coin_id = MEXC_COIN_IDS.get(ASSET, MEXC_COIN_IDS["USDT"])
-            all_ads = {"buy": [], "sell": []}
-
-            for trade_type, side_name in [("BUY", "buy"), ("SELL", "sell")]:
-                url = (
-                    f"/api/platform/p2p/api/market?"
-                    f"adsType=1&allowTrade=false&amount=&blockTrade=false"
-                    f"&certifiedMerchant=false&coinId={coin_id}&countryCode="
-                    f"&currency={FIAT}&follow=false&haveTrade=false"
-                    f"&page=1&payMethod=&tradeType={trade_type}"
-                )
-
-                resp = self._page.evaluate(f"""
-                    fetch('{url}')
-                        .then(r => r.json())
-                        .catch(e => ({{error: e.message}}))
-                """)
-
-                if isinstance(resp, dict) and resp.get("error"):
-                    # Session may be stale, try restart
-                    self._restart_session()
-                    if not self._ensure_browser():
-                        return _error_result(exchange, resp["error"])
-                    resp = self._page.evaluate(f"""
-                        fetch('{url}')
-                            .then(r => r.json())
-                            .catch(e => ({{error: e.message}}))
-                    """)
-
-                ads_list = []
-                items = resp.get("data", []) if isinstance(resp, dict) else []
-
-                for item in items[:ADS_PER_PAGE]:
-                    price = _safe_float(item.get("price"))
-                    amount = _safe_float(item.get("availableQuantity"))
-                    min_amount = _safe_float(item.get("minTradeLimit"))
-                    max_amount = _safe_float(item.get("maxTradeLimit"))
-
-                    merchant_info = item.get("merchant", {})
-                    merchant = merchant_info.get("nickName", "Unknown") if isinstance(merchant_info, dict) else "Unknown"
-
-                    # Parse payment methods (comma-separated IDs)
-                    pay_ids = str(item.get("payMethod", "")).split(",")
-                    payments = [
-                        MEXC_PAYMENT_METHODS.get(pid.strip(), f"Method {pid.strip()}")
-                        for pid in pay_ids if pid.strip()
-                    ]
-
-                    ads_list.append({
-                        "price": price,
-                        "available_amount": amount,
-                        "min_amount": min_amount,
-                        "max_amount": max_amount,
-                        "merchant": merchant,
-                        "payment_methods": payments,
-                    })
-
-                all_ads[side_name] = ads_list
-
-            return _build_result(exchange, all_ads["buy"], all_ads["sell"])
-
-        except Exception as e:
-            # Try to restart on next call
-            self._restart_session()
-            return _error_result(exchange, e)
-
-    def close(self):
-        """Clean up browser resources."""
-        try:
-            if self._page:
-                self._page.close()
-            if self._browser:
-                self._browser.close()
-            if self._playwright:
-                self._playwright.stop()
-        except:
-            pass
-
-
-# Global MEXC fetcher instance (initialized lazily)
-_mexc_fetcher = None
+def _load_mexc_payment_methods():
+    """Load MEXC payment method names once."""
+    global MEXC_PAYMENT_METHODS
+    if MEXC_PAYMENT_METHODS:
+        return
+    try:
+        resp = _mexc_session.get(
+            "https://www.mexc.com/api/platform/p2p/api/payment/method",
+            headers={"Accept": "application/json", "Referer": "https://www.mexc.com/buy-crypto/p2p"},
+            timeout=10,
+        )
+        data = resp.json()
+        if isinstance(data, dict) and "data" in data:
+            for pm in data["data"]:
+                if isinstance(pm, dict):
+                    pm_id = str(pm.get("id", ""))
+                    pm_name = pm.get("nameEn") or pm.get("name") or pm.get("nameCn") or pm_id
+                    MEXC_PAYMENT_METHODS[pm_id] = pm_name
+            print(f"[MEXC] Loaded {len(MEXC_PAYMENT_METHODS)} payment methods")
+    except Exception as e:
+        print(f"[MEXC] Payment method load error: {e}")
 
 
 def fetch_mexc():
     """Fetch P2P ads from MEXC."""
-    global _mexc_fetcher
-    if _mexc_fetcher is None:
-        _mexc_fetcher = MexcFetcher()
-    return _mexc_fetcher.fetch()
+    exchange = "MEXC"
+
+    try:
+        _load_mexc_payment_methods()
+
+        coin_id = MEXC_COIN_IDS.get(ASSET, MEXC_COIN_IDS["USDT"])
+        base_url = "https://www.mexc.com/api/platform/p2p/api/market"
+        all_ads = {"buy": [], "sell": []}
+
+        for trade_type, side_name in [("BUY", "buy"), ("SELL", "sell")]:
+            params = {
+                "adsType": "1",
+                "allowTrade": "false",
+                "amount": "",
+                "blockTrade": "false",
+                "certifiedMerchant": "false",
+                "coinId": coin_id,
+                "countryCode": "",
+                "currency": FIAT,
+                "follow": "false",
+                "haveTrade": "false",
+                "page": "1",
+                "payMethod": "",
+                "tradeType": trade_type,
+            }
+
+            resp = _mexc_session.get(base_url, params=params, headers={
+                "Accept": "application/json, text/plain, */*",
+                "Referer": "https://www.mexc.com/buy-crypto/p2p",
+            }, timeout=15)
+            data = resp.json()
+
+            ads_list = []
+            items = data.get("data", []) if isinstance(data, dict) else []
+
+            for item in items[:ADS_PER_PAGE]:
+                price = _safe_float(item.get("price"))
+                amount = _safe_float(item.get("availableQuantity"))
+                min_amount = _safe_float(item.get("minTradeLimit"))
+                max_amount = _safe_float(item.get("maxTradeLimit"))
+
+                merchant_info = item.get("merchant", {})
+                merchant = merchant_info.get("nickName", "Unknown") if isinstance(merchant_info, dict) else "Unknown"
+
+                pay_ids = str(item.get("payMethod", "")).split(",")
+                payments = [
+                    MEXC_PAYMENT_METHODS.get(pid.strip(), f"Method {pid.strip()}")
+                    for pid in pay_ids if pid.strip()
+                ]
+
+                ads_list.append({
+                    "price": price,
+                    "available_amount": amount,
+                    "min_amount": min_amount,
+                    "max_amount": max_amount,
+                    "merchant": merchant,
+                    "payment_methods": payments,
+                })
+
+            all_ads[side_name] = ads_list
+
+        return _build_result(exchange, all_ads["buy"], all_ads["sell"])
+
+    except Exception as e:
+        return _error_result(exchange, e)
 
 
 # ---------------------------------------------------------------------------
