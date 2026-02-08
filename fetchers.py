@@ -297,7 +297,7 @@ def fetch_bybit(fiat="ETB", pay_filter=None):
             data = resp.json()
 
             ads_list = []
-            items = data.get("result", {}).get("items", [])
+            items = (data.get("result") or {}).get("items") or []
             for item in items:
                 price = _safe_float(item.get("price"))
                 amount = _safe_float(item.get("lastQuantity") or item.get("quantity"))
