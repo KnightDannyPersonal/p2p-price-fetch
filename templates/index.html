@@ -292,6 +292,43 @@
             font-size: 11px;
         }
 
+        .filter-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .exchange-filters {
+            display: flex;
+            gap: 4px;
+            background: #141929;
+            border-radius: 8px;
+            padding: 4px;
+            border: 1px solid #2a2f45;
+        }
+
+        .exchange-filter {
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            color: #5a5f73;
+            transition: all 0.2s;
+            border: none;
+            background: none;
+            text-transform: uppercase;
+        }
+
+        .exchange-filter:hover { color: #8b8fa3; }
+        .exchange-filter.active { color: #fff; }
+        .exchange-filter.active.f-mexc { background: #1ce0c830; color: #1ce0c8; }
+        .exchange-filter.active.f-binance { background: #f0b90b30; color: #f0b90b; }
+        .exchange-filter.active.f-bybit { background: #f7a60030; color: #f7a600; }
+        .exchange-filter.active.f-okx { background: #ffffff20; color: #fff; }
+
         .no-data {
             text-align: center;
             padding: 40px;
@@ -397,9 +434,17 @@
         <!-- Detailed Ads -->
         <div class="detail-section">
             <h2>Individual Ads</h2>
-            <div class="tabs">
-                <button class="tab active" onclick="switchTab('buy')">Buy Ads</button>
-                <button class="tab" onclick="switchTab('sell')">Sell Ads</button>
+            <div class="filter-row">
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab('buy')">Buy Ads</button>
+                    <button class="tab" onclick="switchTab('sell')">Sell Ads</button>
+                </div>
+                <div class="exchange-filters">
+                    <button class="exchange-filter f-mexc active" onclick="toggleExchange('MEXC', this)">MEXC</button>
+                    <button class="exchange-filter f-binance active" onclick="toggleExchange('Binance', this)">Binance</button>
+                    <button class="exchange-filter f-bybit active" onclick="toggleExchange('Bybit', this)">Bybit</button>
+                    <button class="exchange-filter f-okx active" onclick="toggleExchange('OKX', this)">OKX</button>
+                </div>
             </div>
             <div class="ads-grid" id="adsGrid">
                 <div class="no-data">Waiting for data...</div>
@@ -410,6 +455,7 @@
     <script>
         let currentData = null;
         let currentTab = 'buy';
+        let activeExchanges = new Set(['MEXC', 'Binance', 'Bybit', 'OKX']);
         const REFRESH_MS = {{ refresh_interval }} * 1000;
 
         const exchangeOrder = ['MEXC', 'Binance', 'Bybit', 'OKX'];
@@ -429,6 +475,18 @@
             currentTab = tab;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
+            renderAds();
+        }
+
+        function toggleExchange(exchange, btn) {
+            if (activeExchanges.has(exchange)) {
+                if (activeExchanges.size === 1) return; // keep at least one
+                activeExchanges.delete(exchange);
+                btn.classList.remove('active');
+            } else {
+                activeExchanges.add(exchange);
+                btn.classList.add('active');
+            }
             renderAds();
         }
 
@@ -529,6 +587,7 @@
             );
 
             sorted.forEach(ex => {
+                if (!activeExchanges.has(ex.exchange)) return;
                 const ads = currentTab === 'buy' ? ex.buy_ads : ex.sell_ads;
                 ads.forEach(ad => {
                     allAds.push({ ...ad, exchange: ex.exchange });
