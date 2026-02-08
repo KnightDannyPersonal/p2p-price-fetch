@@ -358,6 +358,102 @@
         .exchange-filter.active.f-bybit { background: #f7a60030; color: #f7a600; }
         .exchange-filter.active.f-okx { background: #ffffff20; color: #fff; }
 
+        /* Payment method dropdown */
+        .pay-dropdown {
+            position: relative;
+        }
+
+        .pay-dropdown-btn {
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            color: #8b8fa3;
+            background: #141929;
+            border: 1px solid #2a2f45;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pay-dropdown-btn:hover { color: #e1e4e8; border-color: #3a3f55; }
+        .pay-dropdown-btn.has-selection { color: #1ce0c8; border-color: #1ce0c850; }
+
+        .pay-dropdown-btn .count-badge {
+            background: #1ce0c8;
+            color: #0a0e17;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 10px;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .pay-dropdown-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            background: #141929;
+            border: 1px solid #2a2f45;
+            border-radius: 10px;
+            padding: 8px 0;
+            min-width: 220px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+
+        .pay-dropdown-panel.open { display: block; }
+
+        .pay-dropdown-panel .pay-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 14px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #8b8fa3;
+            transition: background 0.15s;
+        }
+
+        .pay-dropdown-panel .pay-option:hover { background: #1a1f36; }
+
+        .pay-dropdown-panel .pay-option input[type="checkbox"] {
+            accent-color: #1ce0c8;
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+
+        .pay-dropdown-panel .pay-clear {
+            display: block;
+            width: calc(100% - 16px);
+            margin: 4px 8px 4px;
+            padding: 6px;
+            border: none;
+            border-radius: 6px;
+            background: #2a2f45;
+            color: #8b8fa3;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .pay-dropdown-panel .pay-clear:hover { background: #3a3f55; color: #e1e4e8; }
+
+        .pay-dropdown-panel .pay-divider {
+            height: 1px;
+            background: #2a2f45;
+            margin: 4px 0;
+        }
+
         .no-data {
             text-align: center;
             padding: 40px;
@@ -513,6 +609,16 @@
                     <button class="exchange-filter f-bybit active" onclick="toggleExchange('Bybit', this)">Bybit</button>
                     <button class="exchange-filter f-okx active" onclick="toggleExchange('OKX', this)">OKX</button>
                 </div>
+                <div class="pay-dropdown" id="payDropdown">
+                    <button class="pay-dropdown-btn" id="payDropdownBtn" onclick="togglePayDropdown()">
+                        Payment Method
+                    </button>
+                    <div class="pay-dropdown-panel" id="payDropdownPanel">
+                        <button class="pay-clear" onclick="clearPaymentFilter()">Clear All</button>
+                        <div class="pay-divider"></div>
+                        <div id="payOptionsList"></div>
+                    </div>
+                </div>
             </div>
             <div class="ads-grid" id="adsGrid">
                 <div class="no-data">Waiting for data...</div>
@@ -527,6 +633,7 @@
         let currentFiat = '{{ pairs[0].fiat }}';
         let activeExchanges = new Set(['MEXC', 'Binance', 'Bybit', 'OKX']);
         let currentPage = 1;
+        let selectedPayments = new Set();
         const ADS_PER_PAGE = 12;
         const REFRESH_MS = {{ refresh_interval }} * 1000;
 
@@ -546,6 +653,8 @@
         function switchPair(fiat, btn) {
             currentFiat = fiat;
             currentPage = 1;
+            selectedPayments.clear();
+            updatePayBtnLabel();
             document.querySelectorAll('.pair-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById('pairLabel').textContent = 'USDT/' + fiat;
@@ -572,6 +681,77 @@
             }
             currentPage = 1;
             renderAds();
+        }
+
+        function togglePayDropdown() {
+            document.getElementById('payDropdownPanel').classList.toggle('open');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('payDropdown');
+            if (dropdown && !dropdown.contains(e.target)) {
+                document.getElementById('payDropdownPanel').classList.remove('open');
+            }
+        });
+
+        function updatePaymentOptions() {
+            if (!currentData) return;
+            const methods = new Set();
+            currentData.results.forEach(ex => {
+                [...ex.buy_ads, ...ex.sell_ads].forEach(ad => {
+                    (ad.payment_methods || []).forEach(p => {
+                        if (p) methods.add(p);
+                    });
+                });
+            });
+
+            const sorted = [...methods].sort();
+            const list = document.getElementById('payOptionsList');
+            list.innerHTML = '';
+
+            sorted.forEach(method => {
+                const label = document.createElement('label');
+                label.className = 'pay-option';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = selectedPayments.has(method);
+                cb.onchange = () => togglePayment(method);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(method));
+                list.appendChild(label);
+            });
+
+            updatePayBtnLabel();
+        }
+
+        function togglePayment(method) {
+            if (selectedPayments.has(method)) {
+                selectedPayments.delete(method);
+            } else {
+                selectedPayments.add(method);
+            }
+            currentPage = 1;
+            updatePayBtnLabel();
+            renderAds();
+        }
+
+        function clearPaymentFilter() {
+            selectedPayments.clear();
+            currentPage = 1;
+            updatePaymentOptions();
+            renderAds();
+        }
+
+        function updatePayBtnLabel() {
+            const btn = document.getElementById('payDropdownBtn');
+            if (selectedPayments.size === 0) {
+                btn.innerHTML = 'Payment Method';
+                btn.classList.remove('has-selection');
+            } else {
+                btn.innerHTML = `Payment Method <span class="count-badge">${selectedPayments.size}</span>`;
+                btn.classList.add('has-selection');
+            }
         }
 
         function renderSummary(results) {
@@ -752,6 +932,11 @@
                 if (!activeExchanges.has(ex.exchange)) return;
                 const ads = currentTab === 'buy' ? ex.buy_ads : ex.sell_ads;
                 ads.forEach(ad => {
+                    // Payment method filter
+                    if (selectedPayments.size > 0) {
+                        const hasMatch = (ad.payment_methods || []).some(p => selectedPayments.has(p));
+                        if (!hasMatch) return;
+                    }
                     allAds.push({ ...ad, exchange: ex.exchange });
                 });
             });
@@ -810,6 +995,7 @@
 
                 if (data.results && data.results.length > 0) {
                     currentData = data;
+                    updatePaymentOptions();
                     renderSummary(data.results);
                     renderComparison(data.results);
                     renderAds();
