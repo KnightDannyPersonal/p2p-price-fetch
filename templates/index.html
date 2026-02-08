@@ -947,9 +947,13 @@
                 if (!activeExchanges.has(ex.exchange)) return;
                 const ads = currentTab === 'buy' ? ex.buy_ads : ex.sell_ads;
                 ads.forEach(ad => {
-                    // Payment method filter
+                    // Payment method filter (prefix match so "Dukascopy" matches "Dukascopy Bank" etc.)
                     if (selectedPayments.size > 0) {
-                        const hasMatch = (ad.payment_methods || []).some(p => selectedPayments.has(p));
+                        const sels = [...selectedPayments].map(s => s.toLowerCase());
+                        const hasMatch = (ad.payment_methods || []).some(p => {
+                            const pl = p.toLowerCase();
+                            return sels.some(s => pl.startsWith(s));
+                        });
                         if (!hasMatch) return;
                     }
                     allAds.push({ ...ad, exchange: ex.exchange });
