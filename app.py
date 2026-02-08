@@ -5,7 +5,7 @@ import time
 
 from flask import Flask, jsonify, render_template, request
 from config import HOST, PORT, REFRESH_INTERVAL, PAIRS
-from fetchers import fetch_all_pairs
+from fetchers import fetch_all_pairs, _now
 
 app = Flask(__name__)
 
@@ -23,9 +23,9 @@ def background_fetcher():
             with data_lock:
                 for fiat, data in all_data.items():
                     price_data[fiat] = data
-            print(f"[{time.strftime('%H:%M:%S')}] All pairs refreshed successfully")
+            print(f"[{_now('%H:%M:%S')}] All pairs refreshed successfully")
         except Exception as e:
-            print(f"[{time.strftime('%H:%M:%S')}] Error refreshing prices: {e}")
+            print(f"[{_now('%H:%M:%S')}] Error refreshing prices: {e}")
 
         time.sleep(REFRESH_INTERVAL)
 

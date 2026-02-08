@@ -2,9 +2,16 @@
 
 import json
 import time
+from datetime import datetime, timezone, timedelta
 import requests
 from curl_cffi import requests as curl_requests
 from config import ASSET, ADS_PER_PAGE, PAIRS
+
+TZ_OFFSET = timezone(timedelta(hours=3))
+
+
+def _now(fmt="%Y-%m-%d %H:%M:%S"):
+    return datetime.now(TZ_OFFSET).strftime(fmt)
 
 
 HEADERS = {
@@ -71,7 +78,7 @@ def _build_result(exchange, buy_ads, sell_ads):
         "avg_sell_price": round(sum(sell_prices) / len(sell_prices), 2) if sell_prices else None,
         "buy_count": len(buy_prices),
         "sell_count": len(sell_prices),
-        "last_updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "last_updated": _now(),
         "error": None,
     }
 
@@ -87,7 +94,7 @@ def _error_result(exchange, error_msg):
         "avg_sell_price": None,
         "buy_count": 0,
         "sell_count": 0,
-        "last_updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "last_updated": _now(),
         "error": str(error_msg),
     }
 
@@ -436,6 +443,6 @@ def fetch_all_pairs():
         print(f"[{fiat}] Fetching all exchanges...")
         all_data[fiat] = {
             "results": fetch_all(fiat=fiat, pay_filter=pay_filter),
-            "last_refresh": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "last_refresh": _now(),
         }
     return all_data
