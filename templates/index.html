@@ -637,6 +637,13 @@
         const ADS_PER_PAGE = 12;
         const REFRESH_MS = {{ refresh_interval }} * 1000;
 
+        // Pay filters per fiat from backend config
+        const PAY_FILTERS = {
+            {% for p in pairs %}
+            '{{ p.fiat }}': {{ p.pay_filter | tojson }},
+            {% endfor %}
+        };
+
         const exchangeOrder = ['MEXC', 'Binance', 'Bybit', 'OKX'];
         const exchangeClasses = {
             'MEXC': 'mexc', 'Binance': 'binance',
@@ -697,14 +704,22 @@
 
         function updatePaymentOptions() {
             if (!currentData) return;
+            const payFilter = PAY_FILTERS[currentFiat] || [];
+
             const methods = new Set();
-            currentData.results.forEach(ex => {
-                [...ex.buy_ads, ...ex.sell_ads].forEach(ad => {
-                    (ad.payment_methods || []).forEach(p => {
-                        if (p) methods.add(p);
+            if (payFilter.length > 0) {
+                // Only show the configured payment methods for this pair
+                payFilter.forEach(p => methods.add(p));
+            } else {
+                // No filter configured — collect all methods from ads
+                currentData.results.forEach(ex => {
+                    [...ex.buy_ads, ...ex.sell_ads].forEach(ad => {
+                        (ad.payment_methods || []).forEach(p => {
+                            if (p) methods.add(p);
+                        });
                     });
                 });
-            });
+            }
 
             const sorted = [...methods].sort();
             const list = document.getElementById('payOptionsList');
