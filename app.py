@@ -49,6 +49,21 @@ def index():
     )
 
 
+@app.route("/api/price/simple")
+def api_price_simple():
+    fiat = request.args.get("fiat", PAIRS[0]["fiat"]).upper()
+    exchange = request.args.get("exchange", "").lower()
+    field = request.args.get("field", "best_sell")
+    with data_lock:
+        data = price_data.get(fiat, {"results": []})
+        for r in data.get("results", []):
+            if r.get("exchange", "").lower() == exchange or not exchange:
+                val = r.get(f"{field}_price", r.get(field))
+                if val is not None:
+                    return str(val), 200, {"Content-Type": "text/plain"}
+        return "N/A", 200, {"Content-Type": "text/plain"}
+
+
 @app.route("/api/prices")
 def api_prices():
     fiat = request.args.get("fiat", PAIRS[0]["fiat"]).upper()
