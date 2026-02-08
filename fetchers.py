@@ -307,7 +307,13 @@ def fetch_bybit(fiat="ETB", pay_filter=None):
             data = resp.json()
 
             ads_list = []
-            items = (data.get("result") or {}).get("items") or []
+            raw_items = (data.get("result") or {}).get("items") or []
+            # Skip ads where merchant requires taker to have posted their own ad
+            # (these show as "ineligible" for most users on Bybit)
+            items = [
+                i for i in raw_items
+                if not (i.get("tradingPreferenceSet") or {}).get("hasUnPostAd")
+            ]
             for item in items:
                 price = _safe_float(item.get("price"))
                 amount = _safe_float(item.get("lastQuantity") or item.get("quantity"))
