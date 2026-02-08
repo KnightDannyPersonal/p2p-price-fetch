@@ -110,7 +110,7 @@ def fetch_mexc():
         for trade_type, side_name in [("BUY", "buy"), ("SELL", "sell")]:
             params = {
                 "adsType": "1",
-                "allowTrade": "false",
+                "allowTrade": "true",
                 "amount": "",
                 "blockTrade": "false",
                 "certifiedMerchant": "false",
