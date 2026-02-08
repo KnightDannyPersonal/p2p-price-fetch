@@ -258,7 +258,7 @@ def fetch_bybit():
                 "page": "1",
                 "amount": "",
                 "authMaker": False,
-                "canTrade": False,
+                "canTrade": True,
             }
 
             resp = requests.post(url, json=payload, headers=HEADERS, timeout=15)
