@@ -63,15 +63,22 @@ def _safe_float(value, default=0.0):
 
 def _build_result(exchange, buy_ads, sell_ads):
     """Build a standardized result dict from raw ad lists."""
-    buy_prices = [a["price"] for a in buy_ads if a["price"] > 0]
     sell_prices = [a["price"] for a in sell_ads if a["price"] > 0]
+    best_sell = max(sell_prices) if sell_prices else None
+
+    # Filter out ineligible buy ads: if a buy price <= best sell price,
+    # the ad can't actually be traded (would be free arbitrage).
+    if best_sell is not None:
+        buy_ads = [a for a in buy_ads if a["price"] > best_sell]
+
+    buy_prices = [a["price"] for a in buy_ads if a["price"] > 0]
 
     return {
         "exchange": exchange,
         "buy_ads": buy_ads,
         "sell_ads": sell_ads,
         "best_buy_price": min(buy_prices) if buy_prices else None,
-        "best_sell_price": max(sell_prices) if sell_prices else None,
+        "best_sell_price": best_sell,
         "avg_buy_price": round(sum(buy_prices) / len(buy_prices), 2) if buy_prices else None,
         "avg_sell_price": round(sum(sell_prices) / len(sell_prices), 2) if sell_prices else None,
         "buy_count": len(buy_prices),
