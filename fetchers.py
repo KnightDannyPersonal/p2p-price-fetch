@@ -181,10 +181,8 @@ def fetch_mexc(fiat="ETB", pay_filter=None):
                 raw_items = data.get("data", []) if isinstance(data, dict) else []
                 if not raw_items:
                     break
-                # Skip ads where merchant trade is disabled (shows "Limited")
-                items = [i for i in raw_items if i.get("merchantTradeEnable", True)]
 
-                for item in items:
+                for item in raw_items:
                     price = _safe_float(item.get("price"))
                     amount = _safe_float(item.get("availableQuantity"))
                     min_amount = _safe_float(item.get("minTradeLimit"))
