@@ -196,7 +196,7 @@
         .spread-bar .label { color: #8b8fa3; }
         .spread-bar .value { color: #f0b90b; font-weight: 600; }
 
-        .ad-count {
+        .listing-count {
             font-size: 11px;
             color: #5a5f73;
         }
@@ -247,13 +247,13 @@
         .tab:hover { color: #e1e4e8; }
         .tab.active { background: #2a2f45; color: #fff; }
 
-        .ads-grid {
+        .listings-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 12px;
         }
 
-        .ad-card {
+        .listing-card {
             background: #141929;
             border: 1px solid #2a2f45;
             border-radius: 10px;
@@ -261,21 +261,21 @@
             transition: border-color 0.2s;
         }
 
-        .ad-card:hover { border-color: #3a3f55; }
+        .listing-card:hover { border-color: #3a3f55; }
 
-        .ad-header {
+        .listing-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
         }
 
-        .ad-merchant {
+        .listing-merchant {
             font-weight: 600;
             font-size: 14px;
         }
 
-        .ad-exchange-tag {
+        .listing-exchange-tag {
             font-size: 10px;
             padding: 2px 8px;
             border-radius: 4px;
@@ -288,14 +288,14 @@
         .tag-bybit { background: #f7a60020; color: #f7a600; }
         .tag-okx { background: #ffffff20; color: #fff; }
 
-        .ad-price {
+        .listing-price {
             font-size: 20px;
             font-weight: 700;
             margin-bottom: 8px;
             font-variant-numeric: tabular-nums;
         }
 
-        .ad-details {
+        .listing-details {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 6px;
@@ -303,8 +303,8 @@
             color: #8b8fa3;
         }
 
-        .ad-details span { display: block; }
-        .ad-details .val { color: #c9ccd5; font-weight: 500; }
+        .listing-details span { display: block; }
+        .listing-details .val { color: #c9ccd5; font-weight: 500; }
 
         .payment-tags {
             margin-top: 8px;
@@ -569,7 +569,7 @@
         @media (max-width: 768px) {
             .container { padding: 15px; }
             .summary-row { grid-template-columns: 1fr; }
-            .ads-grid { grid-template-columns: 1fr; }
+            .listings-grid { grid-template-columns: 1fr; }
             .header { flex-direction: column; gap: 10px; }
         }
     </style>
@@ -654,7 +654,7 @@
                            oninput="onAmountChange()" min="0" step="any">
                 </div>
             </div>
-            <div class="ads-grid" id="adsGrid">
+            <div class="listings-grid" id="listingsGrid">
                 <div class="no-data">Waiting for data...</div>
             </div>
             <div class="pagination" id="pagination"></div>
@@ -854,7 +854,7 @@
                         <span class="label">Spread</span>
                         <span class="value">${spread} ${currentFiat} (${spreadPct})</span>
                     </div>
-                    <div class="ad-count" style="margin-top:6px">
+                    <div class="listing-count" style="margin-top:6px">
                         ${ex.buy_count} buy ads &middot; ${ex.sell_count} sell ads
                     </div>`}
                 `;
@@ -902,7 +902,7 @@
         function goToPage(page) {
             currentPage = page;
             renderAds();
-            document.getElementById('adsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            document.getElementById('listingsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function renderPagination(totalItems) {
@@ -980,7 +980,7 @@
 
         function renderAds() {
             if (!currentData) return;
-            const grid = document.getElementById('adsGrid');
+            const grid = document.getElementById('listingsGrid');
             grid.innerHTML = '';
 
             const filterAmount = parseFloat(document.getElementById('amountFilter').value) || 0;
@@ -1035,14 +1035,14 @@
                 const priceColor = currentTab === 'buy' ? 'color:#00c853' : 'color:#ff5252';
 
                 const card = document.createElement('div');
-                card.className = 'ad-card';
+                card.className = 'listing-card';
                 card.innerHTML = `
-                    <div class="ad-header">
-                        <span class="ad-merchant">${ad.merchant}</span>
-                        <span class="ad-exchange-tag ${tagCls}">${ad.exchange}</span>
+                    <div class="listing-header">
+                        <span class="listing-merchant">${ad.merchant}</span>
+                        <span class="listing-exchange-tag ${tagCls}">${ad.exchange}</span>
                     </div>
-                    <div class="ad-price" style="${priceColor}">${formatPrice(ad.price)} ${currentFiat}</div>
-                    <div class="ad-details">
+                    <div class="listing-price" style="${priceColor}">${formatPrice(ad.price)} ${currentFiat}</div>
+                    <div class="listing-details">
                         <span>Available: <span class="val">${formatPrice(ad.available_amount)} USDT</span></span>
                         <span>Limit: <span class="val">${formatPrice(ad.min_amount)} - ${formatPrice(ad.max_amount)}</span></span>
                     </div>
