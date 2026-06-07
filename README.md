@@ -26,17 +26,17 @@ Fetches live buy/sell ads from **MEXC**, **Binance**, **Bybit**, and **OKX**, co
 
 ## ✨ Features
 
-- **🔀 Multi-exchange aggregation** — buy/sell ads from MEXC, Binance, Bybit, and OKX in a single view
-- **💱 Multi-currency pairs** — tracks USDT/ETB, USDT/USD, and USDT/EUR
-- **📄 Multi-page fetching** — paginates through all available ads per exchange, not just the first page
-- **🔄 Auto-refresh** — a background thread fetches fresh data every 30 seconds
-- **📊 Exchange comparison table** — side-by-side best/average prices and spread across exchanges
-- **🧾 Individual ad cards** — sortable by price, showing merchant, limits, and payment methods
-- **🎚️ Filters** — toggle exchanges on/off, multi-select payment methods (CBE, Tele Birr, Dukascopy…), and filter by trade amount
-- **🧮 Arbitrage guard** — drops impossible buy ads priced below the best sell price, so comparisons stay realistic
-- **🔌 Simple API** — plain-text endpoint for Google Sheets `IMPORTDATA`
-- **🧱 JSON API** — full ad data for programmatic use
-- **📱 Responsive design** — dark-themed dashboard that works on desktop and mobile
+- **🔀 Multi-exchange aggregation**: buy/sell ads from MEXC, Binance, Bybit, and OKX in a single view
+- **💱 Multi-currency pairs**: tracks USDT/ETB, USDT/USD, and USDT/EUR
+- **📄 Multi-page fetching**: paginates through all available ads per exchange, not just the first page
+- **🔄 Auto-refresh**: a background thread fetches fresh data every 30 seconds
+- **📊 Exchange comparison table**: side-by-side best/average prices and spread across exchanges
+- **🧾 Individual ad cards**: sortable by price, showing merchant, limits, and payment methods
+- **🎚️ Filters**: toggle exchanges on/off, multi-select payment methods (CBE, Tele Birr, Dukascopy…), and filter by trade amount
+- **🧮 Arbitrage guard**: drops impossible buy ads priced below the best sell price, so comparisons stay realistic
+- **🔌 Simple API**: plain-text endpoint for Google Sheets `IMPORTDATA`
+- **🧱 JSON API**: full ad data for programmatic use
+- **📱 Responsive design**: dark-themed dashboard that works on desktop and mobile
 
 ---
 
@@ -78,7 +78,7 @@ P2P Price Fetch/
 Web dashboard.
 
 ### `GET /api/prices?fiat=ETB`
-Full JSON for a given fiat — every exchange's best/average prices plus the individual ads.
+Full JSON for a given fiat: every exchange's best/average prices plus the individual ads.
 
 | Parameter | Default | Description |
 |---|---|---|
@@ -106,7 +106,7 @@ Full JSON for a given fiat — every exchange's best/average prices plus the ind
 ```
 
 ### `GET /api/price/simple`
-A single plain-text price value — built for Google Sheets `IMPORTDATA`.
+A single plain-text price value, built for Google Sheets `IMPORTDATA`.
 
 | Parameter | Default | Description |
 |---|---|---|
@@ -215,4 +215,4 @@ Smoke-tests the exchange fetchers against the live P2P endpoints.
 
 ## 📄 License
 
-Personal project — built for portfolio demonstration and personal use.
+Personal project, built for portfolio demonstration and personal use.
