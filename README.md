@@ -1,88 +1,89 @@
-# P2P Price Tracker
+<div align="center">
 
-A real-time P2P (peer-to-peer) USDT price aggregator that fetches and displays buy/sell ads from four major cryptocurrency exchanges: **MEXC**, **Binance**, **Bybit**, and **OKX**.
+# 📈 P2P Price Tracker
 
-Built with Flask (Python) and deployed on Render. Provides a web dashboard with live price comparison and a simple API for integration with tools like Google Sheets.
+**A real-time USDT P2P price aggregator across four major exchanges.**
+Fetches live buy/sell ads from **MEXC**, **Binance**, **Bybit**, and **OKX**, compares them side by side, and exposes a simple API for tools like Google Sheets.
 
-**Live URL:** https://p2p-price-fetch.onrender.com
+<p>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white">
+  <img alt="Flask" src="https://img.shields.io/badge/Flask-2.3-000000?logo=flask&logoColor=white">
+  <img alt="Requests" src="https://img.shields.io/badge/requests-2.32-2CA5E0">
+  <img alt="Gunicorn" src="https://img.shields.io/badge/Gunicorn-21.2-499848?logo=gunicorn&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white">
+  <img alt="Render" src="https://img.shields.io/badge/Render-deployed-46E3B7?logo=render&logoColor=white">
+</p>
 
-## Features
+[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-p2p--price--fetch.onrender.com-2EA043?style=for-the-badge)](https://p2p-price-fetch.onrender.com)
 
-- **Multi-exchange aggregation** — Fetches P2P ads from MEXC, Binance, Bybit, and OKX in a single view
-- **Multi-currency pairs** — Tracks USDT/ETB, USDT/USD, and USDT/EUR
-- **Multi-page fetching** — Paginates through all available ads on each exchange (not just the first page)
-- **Auto-refresh** — Background thread fetches fresh data every 30 seconds
-- **Exchange comparison table** — Side-by-side best/average prices and spread across exchanges
-- **Individual ad cards** — Sortable by price, showing merchant name, limits, and payment methods
-- **Exchange filter** — Toggle specific exchanges on/off in the ads view
-- **Payment method filter** — Multi-select dropdown to filter ads by payment method (e.g., CBE, Tele Birr, Dukascopy). Uses prefix matching to handle naming differences across exchanges
-- **Amount filter** — Enter a trade amount to only see ads whose min/max limits include that amount
-- **Pagination** — Paginated ads grid with page controls
-- **Simple API** — Plain-text endpoint for Google Sheets `IMPORTDATA` integration
-- **JSON API** — Full ad data as JSON for programmatic use
-- **Responsive design** — Dark-themed dashboard that works on desktop and mobile
+[Features](#-features) · [API](#-api-endpoints) · [Configuration](#%EF%B8%8F-configuration) · [Exchange Notes](#-exchange-specific-notes) · [Run Locally](#-running-locally) · [Deploy](#-deployment-render)
 
-## Project Structure
+</div>
+
+> Built to compare USDT/ETB (and USD/EUR) P2P rates across exchanges in one place, since each platform only shows its own market. A background worker keeps prices fresh, and a plain-text endpoint lets a Google Sheet pull a single live price with `IMPORTDATA`.
+
+---
+
+## ✨ Features
+
+- **🔀 Multi-exchange aggregation** — buy/sell ads from MEXC, Binance, Bybit, and OKX in a single view
+- **💱 Multi-currency pairs** — tracks USDT/ETB, USDT/USD, and USDT/EUR
+- **📄 Multi-page fetching** — paginates through all available ads per exchange, not just the first page
+- **🔄 Auto-refresh** — a background thread fetches fresh data every 30 seconds
+- **📊 Exchange comparison table** — side-by-side best/average prices and spread across exchanges
+- **🧾 Individual ad cards** — sortable by price, showing merchant, limits, and payment methods
+- **🎚️ Filters** — toggle exchanges on/off, multi-select payment methods (CBE, Tele Birr, Dukascopy…), and filter by trade amount
+- **🧮 Arbitrage guard** — drops impossible buy ads priced below the best sell price, so comparisons stay realistic
+- **🔌 Simple API** — plain-text endpoint for Google Sheets `IMPORTDATA`
+- **🧱 JSON API** — full ad data for programmatic use
+- **📱 Responsive design** — dark-themed dashboard that works on desktop and mobile
+
+---
+
+## 🧰 Tech Stack
+
+| Layer | Technology |
+|---|---|
+| 🐍 **Language** | Python 3.11 |
+| 🌶️ **Web framework** | Flask |
+| 🌐 **HTTP client** | requests |
+| 🧵 **Concurrency** | Background daemon thread + thread-safe shared state |
+| 🚀 **Server** | Gunicorn (1 worker, 4 threads) |
+| 🐳 **Container** | Docker (`python:3.11-slim`) |
+| ☁️ **Hosting** | Render (free tier) |
+
+---
+
+## 📁 Project Structure
 
 ```
 P2P Price Fetch/
-├── app.py              # Flask server, routes, background fetcher thread
-├── config.py           # Configuration (pairs, refresh interval, pagination)
-├── fetchers.py         # Exchange-specific P2P API fetchers
+├── app.py                  # Flask server, routes, background fetcher thread
+├── config.py               # Configuration (asset, pairs, refresh interval, pagination)
+├── fetchers.py             # Exchange-specific P2P API fetchers + normalization
 ├── templates/
-│   └── index.html      # Single-page dashboard (HTML/CSS/JS)
-├── requirements.txt    # Python dependencies
-├── Dockerfile          # Docker image for deployment
-├── render.yaml         # Render deployment config
-├── GOOGLE_SHEETS_GUIDE.md  # Google Sheets integration guide
-└── .gitignore
+│   └── index.html          # Single-page dashboard (HTML/CSS/JS)
+├── test_fetchers.py        # Smoke tests for the fetchers
+├── requirements.txt        # Python dependencies
+├── Dockerfile              # Container image for deployment
+├── render.yaml             # Render deployment config
+└── GOOGLE_SHEETS_GUIDE.md  # Google Sheets integration guide
 ```
 
-## Configuration
+---
 
-All configuration is in `config.py`:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `ASSET` | `"USDT"` | Crypto asset to track |
-| `PAIRS` | ETB, USD, EUR | Currency pairs with optional payment method filters |
-| `REFRESH_INTERVAL` | `30` | Seconds between background fetches |
-| `PAGE_SIZE` | `20` | Ads per API page (Binance/Bybit) |
-| `MAX_PAGES` | `10` | Max pages to fetch per side per exchange |
-| `HOST` | `"0.0.0.0"` | Flask bind host |
-| `PORT` | `5000` | Flask port (overridden by `PORT` env var on Render) |
-
-### Currency Pair Configuration
-
-Each pair in `PAIRS` can specify a `pay_filter` list to restrict which payment methods are fetched and shown:
-
-```python
-PAIRS = [
-    {"fiat": "ETB", "label": "USDT/ETB", "pay_filter": []},           # All payment methods
-    {"fiat": "USD", "label": "USDT/USD", "pay_filter": ["Dukascopy", "Payoneer"]},  # Filtered
-    {"fiat": "EUR", "label": "USDT/EUR", "pay_filter": ["Dukascopy", "Payoneer"]},  # Filtered
-]
-```
-
-An empty `pay_filter` means all payment methods are shown. When specified, only matching methods appear in the dropdown, and on Binance/OKX/MEXC the API request itself is filtered to those methods.
-
-## API Endpoints
+## 🔌 API Endpoints
 
 ### `GET /`
-
 Web dashboard.
 
 ### `GET /api/prices?fiat=ETB`
-
-Returns full JSON data for a given fiat currency, including all exchange results with individual ads.
-
-**Parameters:**
+Full JSON for a given fiat — every exchange's best/average prices plus the individual ads.
 
 | Parameter | Default | Description |
-|-----------|---------|-------------|
+|---|---|---|
 | `fiat` | `ETB` | Currency code: `ETB`, `USD`, or `EUR` |
 
-**Response structure:**
 ```json
 {
   "last_refresh": "2026-02-08 21:39:27",
@@ -95,72 +96,82 @@ Returns full JSON data for a given fiat currency, including all exchange results
       "avg_sell_price": 191.04,
       "buy_count": 46,
       "sell_count": 50,
-      "buy_ads": [ ... ],
-      "sell_ads": [ ... ],
+      "buy_ads": [ /* ... */ ],
+      "sell_ads": [ /* ... */ ],
       "last_updated": "2026-02-08 21:39:15",
       "error": null
-    },
-    ...
+    }
   ]
 }
 ```
 
 ### `GET /api/price/simple`
-
-Returns a single plain-text price value. Designed for Google Sheets `IMPORTDATA`.
-
-**Parameters:**
+A single plain-text price value — built for Google Sheets `IMPORTDATA`.
 
 | Parameter | Default | Description |
-|-----------|---------|-------------|
+|---|---|---|
 | `fiat` | `ETB` | Currency code |
-| `exchange` | *(best across all)* | Exchange name: `MEXC`, `Binance`, `Bybit`, `OKX` |
-| `field` | `best_sell` | Price field: `best_buy`, `best_sell`, `avg_buy`, `avg_sell` |
+| `exchange` | *(best across all)* | `MEXC`, `Binance`, `Bybit`, or `OKX` |
+| `field` | `best_sell` | `best_buy`, `best_sell`, `avg_buy`, or `avg_sell` |
 
-**Example:**
 ```
 GET /api/price/simple?fiat=ETB&exchange=Binance&field=best_sell
 → 191.02
 ```
 
-When no exchange is specified, returns the best value across all exchanges (max for sell, min for buy). Returns `N/A` if no data is available.
+With no `exchange`, it returns the best across all exchanges (max for sell, min for buy), or `N/A` if no data is available yet. See **[GOOGLE_SHEETS_GUIDE.md](GOOGLE_SHEETS_GUIDE.md)** for full `IMPORTDATA` usage.
 
-See [GOOGLE_SHEETS_GUIDE.md](GOOGLE_SHEETS_GUIDE.md) for detailed usage with `IMPORTDATA`.
+---
 
-## Exchange-Specific Notes
+## ⚙️ Configuration
 
-### MEXC
-- Uses GET requests to `mexc.com/api/platform/p2p/api/market`
-- Returns 10 ads per page; fetches up to 5 pages per side (50 ads max)
-- Payment method IDs are resolved via a separate API call to `/api/payment/method`
-- Filters out ads where merchant trade is disabled (`merchantTradeEnable: false`)
+Everything lives in [config.py](config.py):
 
-### Binance
-- Uses POST requests to `p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search`
-- 20 ads per page, up to 10 pages
-- Payment methods mapped via `BINANCE_PAY_METHODS` dict (e.g., `"Dukascopy"` -> `"DukascopyBank"`)
+| Setting | Default | Description |
+|---|---|---|
+| `ASSET` | `"USDT"` | Crypto asset to track |
+| `PAIRS` | ETB, USD, EUR | Currency pairs with optional payment-method filters |
+| `REFRESH_INTERVAL` | `30` | Seconds between background fetches |
+| `PAGE_SIZE` | `20` | Ads per API page (Binance/Bybit) |
+| `MAX_PAGES` | `10` | Max pages to fetch per side per exchange (safety cap) |
+| `HOST` | `"0.0.0.0"` | Flask bind host |
+| `PORT` | `5000` | Flask port (overridden by Render's `PORT` env var) |
 
-### Bybit
-- Uses POST requests to `api2.bybit.com/fiat/otc/item/online`
-- 20 ads per page, up to 10 pages
-- Filters out ineligible ads (merchants requiring taker to have posted their own ad via `hasUnPostAd`)
-- Payment method IDs resolved via `BYBIT_PAYMENT_NAMES` mapping
+### Currency pair filters
 
-### OKX
-- Uses GET requests to `okx.com/v3/c2c/tradingOrders/books`
-- Returns all ads in a single response (no pagination needed)
-- Payment methods passed as comma-separated identifiers
+Each pair can restrict which payment methods are fetched and shown via `pay_filter`:
 
-## Running Locally
+```python
+PAIRS = [
+    {"fiat": "ETB", "label": "USDT/ETB", "pay_filter": []},                          # all methods
+    {"fiat": "USD", "label": "USDT/USD", "pay_filter": ["Dukascopy", "Payoneer"]},   # filtered
+    {"fiat": "EUR", "label": "USDT/EUR", "pay_filter": ["Dukascopy", "Payoneer"]},   # filtered
+]
+```
 
-### Prerequisites
+An empty `pay_filter` shows all methods. When set, only matching methods appear in the dropdown, and on Binance/OKX/MEXC the API request itself is filtered to those methods (prefix matching bridges naming differences across exchanges).
 
-- Python 3.11+
+---
 
-### Setup
+## 🏦 Exchange-Specific Notes
+
+| Exchange | Method | Pagination | Notes |
+|---|---|---|---|
+| **MEXC** | `GET` `/platform/p2p/api/market` | 10/page, up to 5 pages (50 ads) | Payment method IDs resolved via a separate `/payment/method` call |
+| **Binance** | `POST` `/c2c/adv/search` | 20/page, up to 10 pages | Methods mapped via `BINANCE_PAY_METHODS` (e.g. `Dukascopy → DukascopyBank`) |
+| **Bybit** | `POST` `/fiat/otc/item/online` | 20/page, up to 10 pages | Skips ineligible ads (`hasUnPostAd`); IDs resolved via `BYBIT_PAYMENT_NAMES` |
+| **OKX** | `GET` `/c2c/tradingOrders/books` | single response | Payment methods passed as comma-separated identifiers |
+
+All fetchers normalize results into a common shape and reconcile maker/taker perspective so "buy" and "sell" mean the same thing across exchanges.
+
+---
+
+## 🚀 Running Locally
+
+**Prerequisites:** Python 3.11+
 
 ```bash
-git clone https://github.com/KnightDannyPersonal/p2p-price-fetch.git
+git clone https://github.com/KnightDanny/p2p-price-fetch.git
 cd p2p-price-fetch
 pip install -r requirements.txt
 python app.py
@@ -175,23 +186,33 @@ docker build -t p2p-price-tracker .
 docker run -p 5000:5000 p2p-price-tracker
 ```
 
-## Deployment (Render)
+---
 
-The project is configured for Render's free tier using Docker:
+## ☁️ Deployment (Render)
 
-1. Push to the GitHub repository
-2. Render auto-deploys from `render.yaml` which uses the `Dockerfile`
-3. The `PORT` environment variable is set to `5000` in `render.yaml`
-4. Gunicorn runs with 1 worker and 4 threads (single worker ensures the background fetcher runs once)
+Configured for Render's free tier via Docker:
 
-### Why 1 Worker?
+1. Push to GitHub.
+2. Render auto-deploys from [render.yaml](render.yaml), which builds the [Dockerfile](Dockerfile).
+3. `PORT` is set to `5000` in `render.yaml`.
+4. Gunicorn runs with **1 worker and 4 threads**.
 
-The background fetcher thread is started when the Flask app module loads. With multiple Gunicorn workers, each worker would spawn its own fetcher thread, making redundant API calls to the exchanges. A single worker with multiple threads handles concurrent HTTP requests while keeping one fetcher.
+### Why one worker?
 
-## Dependencies
+The background fetcher thread starts when the Flask module loads. With multiple Gunicorn workers, each would spawn its own fetcher and make redundant calls to the exchanges. A single worker with multiple threads handles concurrent HTTP requests while keeping exactly one fetcher running.
 
-| Package | Purpose |
-|---------|---------|
-| `flask` | Web framework |
-| `requests` | HTTP client for exchange APIs |
-| `gunicorn` | Production WSGI server (deployment) |
+---
+
+## 🧪 Tests
+
+```bash
+python test_fetchers.py
+```
+
+Smoke-tests the exchange fetchers against the live P2P endpoints.
+
+---
+
+## 📄 License
+
+Personal project — built for portfolio demonstration and personal use.
