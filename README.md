@@ -29,7 +29,7 @@ Fetches live buy/sell ads from **MEXC**, **Binance**, **Bybit**, and **OKX**, co
 - **🔀 Multi-exchange aggregation**: buy/sell ads from MEXC, Binance, Bybit, and OKX in a single view
 - **💱 Multi-currency pairs**: tracks USDT/ETB, USDT/USD, and USDT/EUR
 - **📄 Multi-page fetching**: paginates through all available ads per exchange, not just the first page
-- **🔄 Auto-refresh**: a background thread fetches fresh data every 30 seconds
+- **🔄 Auto-refresh**: a background thread fetches fresh data on a configurable interval (30 seconds by default)
 - **📊 Exchange comparison table**: side-by-side best/average prices and spread across exchanges
 - **🧾 Individual ad cards**: sortable by price, showing merchant, limits, and payment methods
 - **🎚️ Filters**: toggle exchanges on/off, multi-select payment methods (CBE, Tele Birr, Dukascopy…), and filter by trade amount
@@ -125,17 +125,18 @@ With no `exchange`, it returns the best across all exchanges (max for sell, min 
 
 ## ⚙️ Configuration
 
-Everything lives in [config.py](config.py):
+Everything lives in [config.py](config.py). Settings marked *env* can be overridden with an environment variable of the same name, so on Render you can change them from the dashboard without touching code.
 
 | Setting | Default | Description |
 |---|---|---|
 | `ASSET` | `"USDT"` | Crypto asset to track |
 | `PAIRS` | ETB, USD, EUR | Currency pairs with optional payment-method filters |
-| `REFRESH_INTERVAL` | `30` | Seconds between background fetches |
+| `FIATS` *(env)* | *(all pairs)* | Comma-separated allowlist of fiats to track, e.g. `ETB` or `ETB,USD`. Unlisted pairs are not fetched or shown |
+| `REFRESH_INTERVAL` *(env)* | `30` | Seconds between background fetches. `render.yaml` sets `300` |
 | `PAGE_SIZE` | `20` | Ads per API page (Binance/Bybit) |
 | `MAX_PAGES` | `10` | Max pages to fetch per side per exchange (safety cap) |
 | `HOST` | `"0.0.0.0"` | Flask bind host |
-| `PORT` | `5000` | Flask port (overridden by Render's `PORT` env var) |
+| `PORT` *(env)* | `5000` | Flask port (Render sets this) |
 
 ### Currency pair filters
 
@@ -177,7 +178,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-The server starts on http://localhost:5000. The background fetcher begins immediately and refreshes every 30 seconds.
+The server starts on http://localhost:5000. The background fetcher begins immediately and refreshes every 30 seconds unless `REFRESH_INTERVAL` is set.
 
 ### With Docker
 
@@ -194,7 +195,7 @@ Configured for Render's free tier via Docker:
 
 1. Push to GitHub.
 2. Render auto-deploys from [render.yaml](render.yaml), which builds the [Dockerfile](Dockerfile).
-3. `PORT` is set to `5000` in `render.yaml`.
+3. `render.yaml` sets `PORT=5000` and `REFRESH_INTERVAL=300`. Add `FIATS=ETB` in the Render dashboard to track only ETB.
 4. Gunicorn runs with **1 worker and 4 threads**.
 
 ### Why one worker?

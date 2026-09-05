@@ -7,3 +7,9 @@ services:
     envVars:
       - key: PORT
         value: 5000
+      # Seconds between background fetches (default in code is 30)
+      - key: REFRESH_INTERVAL
+        value: 300
+      # Uncomment to track only some pairs, e.g. ETB only
+      # - key: FIATS
+      #   value: ETB
